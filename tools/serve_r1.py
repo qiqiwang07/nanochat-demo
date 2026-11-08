@@ -345,6 +345,7 @@ def main() -> int:
     global LLAMA, MAX_NEW
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=8091)
+    ap.add_argument("--bind", default="0.0.0.0", help="监听地址")
     ap.add_argument("--llama", default=LLAMA)
     ap.add_argument("--max-new", type=int, default=800)
     ap.add_argument("--corpus", default=CORPUS)
@@ -356,7 +357,7 @@ def main() -> int:
         build_index(args.corpus)
         load_olympiad(OLYMPIAD)
     load_sessions()
-    srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
+    srv = ThreadingHTTPServer((args.bind, args.port), Handler)
     print(f"AI 服务已启动: http://127.0.0.1:{args.port}  (后端 {LLAMA})", flush=True)
     srv.serve_forever()
     return 0

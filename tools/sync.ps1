@@ -82,7 +82,7 @@ if ($Verify) {
             Remove-Item $tmp -Force -ErrorAction SilentlyContinue
         }
 
-        $same = ($localMd5 -eq $remoteMd5 -and $localMd5 -eq $gitMd5)
+        $same = ($localMd5 -ieq $remoteMd5 -and $localMd5 -ieq $gitMd5)
         if (-not $same) { $allOk = $false }
         $color = if ($same) { 'Green' } else { 'Red' }
         $mark = if ($same) { 'OK' } else { 'DIFF' }
