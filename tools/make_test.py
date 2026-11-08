@@ -1,0 +1,53 @@
+"""Build test_answer.c: same pipeline as gui/server, but a console main for diagnosis."""
+from pathlib import Path
+
+DST = Path(r"C:\Users\Lenovo\ai\nanochat-demo")
+WS = Path(r"C:\其它\OneDrive\文档\deepseek-harness\default-workspace")
+nano = (DST / "src" / "nanogpt.c").read_text(encoding="utf-8")
+solver = (DST / "src" / "solver.c").read_text(encoding="utf-8")
+gui_part = (WS / "gui_part.c").read_text(encoding="utf-8")
+test_main = (WS / "test_main.c").read_text(encoding="utf-8")
+
+
+def cut(src, start_marker, end_marker, name):
+    i = src.index(start_marker)
+    j = src.index(end_marker, i)
+    print(f"  提取 {name}")
+    return src[i:j]
+
+
+A = cut(solver, "/* ============================ 一元一次方程",
+        "/* ============================ 语料与检索", "一元一次方程")
+B = cut(solver, "/* ======================= 中文数字与题型规则引擎",
+        "/* ====================== 闲聊应答", "题型规则引擎")
+C = cut(solver, "/* ====================== 闲聊应答",
+        "/* ============================ 交互与入口", "闲聊应答")
+
+
+def to_rep(region: str) -> str:
+    region = region.replace("snprintf(", "SNPRINTF_TMP(")
+    region = region.replace("printf(", "repf(")
+    region = region.replace("SNPRINTF_TMP(", "snprintf(")
+    region = region.replace("eval_arith(", "eval_expr(")
+    return region
+
+
+B = to_rep(B)
+C = to_rep(C)
+
+# answer_q 部分：从 gui_part.c 的开头到 Win32 窗口段之前
+ans_part = cut(gui_part, "/* ====================== 回复缓冲与统一应答",
+               "/* ====================== Win32 聊天窗口", "answer_q")
+
+old_inc = "#ifdef _WIN32\n#include <windows.h>\n#endif"
+new_inc = ("#ifdef _WIN32\n#include <windows.h>\n"
+           "static void repf(const char *fmt, ...);\nstatic void rep(const char *s);\n#endif")
+assert nano.count(old_inc) == 1
+nano = nano.replace(old_inc, new_inc, 1)
+
+idx = nano.index("/* ------------------------------ 入口")
+nano = nano[:idx]
+
+out = nano + A + B + C + "\n" + ans_part + "\n" + test_main + "\n"
+(DST / "src" / "test_answer.c").write_text(out, encoding="utf-8")
+print("已生成 test_answer.c")

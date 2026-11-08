@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI 助手</title>
+<style>
+  :root {
+    --bg: #eef1f7;
+    --panel: #ffffff;
+    --panel-2: #f7f8fb;
+    --line: #e6e9f0;
+    --text: #1d2129;
+    --text-2: #6b7280;
+    --text-3: #a0a6b1;
+    --accent: #4f6ef7;
+    --accent-2: #6a8bff;
+    --accent-soft: #eef2ff;
+    --user-bubble: linear-gradient(135deg, #4f6ef7, #6a8bff);
+    --ai-bubble: #ffffff;
+    --code-bg: #1e2230;
+    --code-text: #dfe6f5;
+    --shadow: 0 10px 30px rgba(31, 45, 84, .10);
+    --radius: 16px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161c;
+      --panel: #1c1f27;
+      --panel-2: #22252f;
+      --line: #2c3040;
+      --text: #e7eaf2;
+      --text-2: #9aa1b2;
+      --text-3: #6b7285;
+      --accent: #6a8bff;
+      --accent-2: #8aa4ff;
+      --accent-soft: #232a44;
+      --ai-bubble: #232733;
+      --code-bg: #10131a;
+      --code-text: #d5deef;
+      --shadow: 0 10px 30px rgba(0, 0, 0, .35);
+    }
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+    background: radial-gradient(1200px 600px at 10% 0%, #dfe6ff 0%, transparent 55%),
+                radial-gradient(900px 500px at 100% 100%, #e6f0ff 0%, transparent 50%),
+                var(--bg);
+    color: var(--text);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 18px;
+  }
+  #app {
+    width: 1060px; max-width: 100%; height: 100%; max-height: 900px;
+    display: flex;
+    background: var(--panel);
+    border-radius: 20px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    border: 1px solid var(--line);
+  }
+
+  /* ---------------- 侧边栏 ---------------- */
+  #side {
+    width: 258px; flex-shrink: 0;
+    background: var(--panel-2);
+    border-right: 1px solid var(--line);
+    display: flex; flex-direction: column;
+    padding: 16px 12px 12px;
+    gap: 12px;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 2px 6px 6px; }
+  .brand .logo {
+    width: 34px; height: 34px; border-radius: 11px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-weight: 800; font-size: 15px;
+    box-shadow: 0 6px 16px rgba(79, 110, 247, .35);
+  }
+  .brand .t1 { font-size: 15px; font-weight: 700; letter-spacing: .3px; }
+  .brand .t2 { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+  #newchat {
+    border: none; cursor: pointer;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff; font-size: 14.5px; font-weight: 600;
+    padding: 11px 0; border-radius: 12px;
+    transition: transform .12s ease, box-shadow .12s ease, filter .12s;
+    box-shadow: 0 6px 16px rgba(79, 110, 247, .28);
+    font-family: inherit;
+  }
+  #newchat:hover { filter: brightness(1.05); box-shadow: 0 8px 20px rgba(79, 110, 247, .36); }
+  #newchat:active { transform: translateY(1px) scale(.995); }
+  .side-label {
+    font-size: 11px; color: var(--text-3); letter-spacing: .6px;
+    padding: 2px 8px; text-transform: uppercase;
+  }
+  #sessions {
+    flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 3px;
+    padding-right: 2px;
+  }
+  #sessions .hint { color: var(--text-3); font-size: 12.5px; padding: 10px 8px; line-height: 1.6; }
+  .sess {
+    padding: 9px 11px; border-radius: 10px; font-size: 13.5px; color: var(--text-2);
+    cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    transition: background .12s, color .12s;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .sess::before { content: "💬"; font-size: 12px; opacity: .55; }
+  .sess:hover { background: var(--panel); color: var(--text); }
+  .sess.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .side-foot {
+    border-top: 1px solid var(--line); padding-top: 10px;
+    font-size: 11px; color: var(--text-3); line-height: 1.7;
+  }
+
+  /* ---------------- 主区域 ---------------- */
+  #main { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--panel); }
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 20px; border-bottom: 1px solid var(--line);
+    background: color-mix(in srgb, var(--panel) 88%, transparent);
+    backdrop-filter: blur(8px);
+  }
+  header .avatar {
+    width: 38px; height: 38px; border-radius: 12px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff; display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 14px;
+    box-shadow: 0 6px 16px rgba(79, 110, 247, .3);
+  }
+  header .name { font-size: 15.5px; font-weight: 700; }
+  header .status { font-size: 12px; color: var(--text-3); margin-top: 2px; display: flex; align-items: center; gap: 6px; }
+  header .dot {
+    width: 7px; height: 7px; border-radius: 50%; background: #22c55e;
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, .18);
+    animation: pulse 2.4s infinite;
+  }
+  @keyframes pulse { 0%, 100% { opacity: 1 } 50% { opacity: .45 } }
+
+  #msgs {
+    flex: 1; overflow-y: auto; padding: 22px 24px;
+    display: flex; flex-direction: column; gap: 18px;
+    scroll-behavior: smooth;
+  }
+  #msgs::-webkit-scrollbar { width: 8px; }
+  #msgs::-webkit-scrollbar-thumb { background: #cfd6e4; border-radius: 8px; }
+  #msgs::-webkit-scrollbar-track { background: transparent; }
+  @media (prefers-color-scheme: dark) {
+    #msgs::-webkit-scrollbar-thumb { background: #3a4050; }
+  }
+
+  .row { display: flex; gap: 11px; align-items: flex-start; animation: rise .26s ease both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
+  .row.user { flex-direction: row-reverse; }
+  .avatar-sm {
+    width: 32px; height: 32px; border-radius: 10px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700;
+  }
+  .row.ai .avatar-sm {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff;
+    box-shadow: 0 4px 12px rgba(79, 110, 247, .28);
+  }
+  .row.user .avatar-sm { background: linear-gradient(135deg, #34d399, #10b981); color: #fff; }
+
+  .msgwrap { min-width: 80px; max-width: 76%; display: flex; flex-direction: column; }
+  .bubble {
+    padding: 12px 15px; border-radius: 14px;
+    font-size: 14.6px; line-height: 1.72;
+    white-space: pre-wrap; word-break: break-word;
+    writing-mode: horizontal-tb; text-orientation: mixed;
+    background: var(--ai-bubble); color: var(--text);
+    border: 1px solid var(--line);
+    border-top-left-radius: 4px;
+    box-shadow: 0 2px 10px rgba(31, 45, 84, .05);
+  }
+  .row.user .bubble {
+    background: var(--user-bubble); color: #fff; border: none;
+    border-top-left-radius: 14px; border-top-right-radius: 4px;
+    box-shadow: 0 6px 18px rgba(79, 110, 247, .28);
+  }
+  .bubble code.ic {
+    background: var(--accent-soft); color: var(--accent);
+    padding: 1px 5px; border-radius: 5px; font-size: 13px;
+    font-family: Consolas, "Courier New", monospace;
+  }
+  .bubble pre.code {
+    background: var(--code-bg); color: var(--code-text);
+    padding: 12px 14px; border-radius: 10px; margin: 8px 0;
+    overflow-x: auto; font-size: 13px; line-height: 1.6;
+    font-family: Consolas, "Courier New", monospace;
+  }
+  .bubble pre.code code { font-family: inherit; }
+  .bubble strong { color: var(--accent); }
+  .row.user .bubble strong { color: #fff; text-decoration: underline; }
+
+  .meta {
+    font-size: 11px; color: var(--text-3); margin-top: 5px;
+    display: flex; gap: 8px; align-items: center; font-family: Consolas, monospace;
+  }
+  .usage { color: var(--text-3); }
+
+  /* 输入区 */
+  footer {
+    padding: 12px 16px 16px; background: var(--panel);
+    border-top: 1px solid var(--line);
+    display: flex; gap: 10px; align-items: flex-end;
+  }
+  #inp {
+    flex: 1; border: 1.5px solid var(--line); border-radius: 14px;
+    background: var(--panel-2); color: var(--text);
+    outline: none; font-size: 14.6px; padding: 12px 14px;
+    height: 48px; max-height: 150px; resize: none; font-family: inherit;
+    line-height: 1.5; transition: border-color .15s, box-shadow .15s;
+  }
+  #inp:focus { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+  #inp::placeholder { color: var(--text-3); }
+  #send {
+    border: none; cursor: pointer; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff; font-size: 15px; font-weight: 600;
+    height: 48px; padding: 0 26px; border-radius: 14px;
+    transition: filter .12s, transform .12s;
+    box-shadow: 0 6px 16px rgba(79, 110, 247, .28);
+    font-family: inherit;
+  }
+  #send:hover { filter: brightness(1.06); }
+  #send:active { transform: translateY(1px); }
+  #send:disabled { background: #c8d0e6; box-shadow: none; cursor: default; }
+
+  /* 正在输入 */
+  #typing {
+    display: none; gap: 5px; align-items: center;
+    padding: 0 24px 8px; color: var(--text-3); font-size: 12.5px;
+  }
+  #typing .d {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--accent); opacity: .35;
+    animation: bounce 1.2s infinite;
+  }
+  #typing .d:nth-child(2) { animation-delay: .15s }
+  #typing .d:nth-child(3) { animation-delay: .3s }
+  @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); opacity: .35 } 30% { transform: translateY(-4px); opacity: 1 } }
+
+  /* 文件操作确认卡片 */
+  .card {
+    max-width: 78%; background: var(--panel-2);
+    border: 1px solid var(--line); border-left: 4px solid #f59e0b;
+    border-radius: 12px; padding: 13px 15px; font-size: 13.5px; color: var(--text);
+    line-height: 1.7; box-shadow: 0 2px 10px rgba(31, 45, 84, .05);
+  }
+  .card .t { font-weight: 700; margin-bottom: 6px; }
+  .card .p {
+    font-family: Consolas, monospace; font-size: 12.5px; color: var(--text-2);
+    word-break: break-all; background: var(--panel); padding: 7px 9px;
+    border-radius: 8px; margin-top: 5px; border: 1px solid var(--line);
+  }
+  .card .btns { margin-top: 11px; display: flex; gap: 8px; }
+  .card button {
+    border: none; border-radius: 9px; padding: 7px 20px;
+    font-size: 13.5px; cursor: pointer; color: #fff; font-family: inherit;
+  }
+  .card button.ok { background: #10b981; }
+  .card button.no { background: #9aa3b2; }
+  .card button:disabled { opacity: .55; cursor: default; }
+
+  /* 空状态建议 */
+  .suggests { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+  .chip {
+    border: 1px solid var(--line); background: var(--panel-2);
+    color: var(--text-2); font-size: 13px; padding: 8px 13px;
+    border-radius: 999px; cursor: pointer; transition: all .15s; font-family: inherit;
+  }
+  .chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+
+  @media (max-width: 760px) {
+    body { padding: 0; }
+    #app { border-radius: 0; border: none; max-height: none; height: 100%; }
+    #side { display: none; }
+    .msgwrap { max-width: 84%; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="side">
+    <div class="brand">
+      <div class="logo">AI</div>
+      <div>
+        <div class="t1">AI 助手</div>
+        <div class="t2">本机运行 · 不联网</div>
+      </div>
+    </div>
+    <button id="newchat">＋ 新会话</button>
+    <div class="side-label">历史会话</div>
+    <div id="sessions"><div class="hint">还没有对话<br>在右边发一条消息开始</div></div>
+    <div class="side-foot">模型：DeepSeek-R1 1.5B<br>4bit 量化 · 本机推理</div>
+  </aside>
+
+  <main id="main">
+    <header>
+      <div class="avatar">AI</div>
+      <div>
+        <div class="name">AI 助手</div>
+        <div class="status"><span class="dot"></span>在线 · 本机离线运行</div>
+      </div>
+    </header>
+    <div id="msgs"></div>
+    <div id="typing"><span class="d"></span><span class="d"></span><span class="d"></span></div>
+    <footer>
+      <textarea id="inp" placeholder="发消息…（Enter 发送，Shift+Enter 换行）" rows="1"></textarea>
+      <button id="send">发送</button>
+    </footer>
+  </main>
+</div>
+<script>
+const msgs = document.getElementById('msgs');
+const sessionsEl = document.getElementById('sessions');
+const inp = document.getElementById('inp');
+const send = document.getElementById('send');
+const typing = document.getElementById('typing');
+let current = null;
+
+function nowTime() {
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  return `${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/* 轻量 Markdown：代码块、行内代码、加粗 */
+function renderMD(text) {
+  let s = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  s = s.replace(/```[a-zA-Z0-9]*\n([\s\S]*?)```/g, (m, code) =>
+    '<pre class="code"><code>' + code.replace(/\n$/, '') + '</code></pre>');
+  s = s.replace(/`([^`\n]+)`/g, '<code class="ic">$1</code>');
+  s = s.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+  return s;
+}
+
+function addBubble(text, who, usage) {
+  const row = document.createElement('div');
+  row.className = 'row ' + who;
+  const av = document.createElement('div');
+  av.className = 'avatar-sm';
+  av.textContent = who === 'user' ? '我' : 'AI';
+  const wrap = document.createElement('div');
+  wrap.className = 'msgwrap';
+  const b = document.createElement('div');
+  b.className = 'bubble';
+  if (who === 'ai') b.innerHTML = renderMD(text);
+  else b.textContent = text;
+  wrap.appendChild(b);
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+  const t = document.createElement('span');
+  t.textContent = nowTime();
+  meta.appendChild(t);
+  if (usage) {
+    const u = document.createElement('span');
+    u.className = 'usage';
+    u.textContent = '↑' + usage.in + ' ↓' + usage.out + ' · ' + usage.total + ' 字 · 模型 ' + usage.model + ' token';
+    meta.appendChild(u);
+  }
+  wrap.appendChild(meta);
+  row.appendChild(av);
+  row.appendChild(wrap);
+  msgs.appendChild(row);
+  msgs.scrollTop = msgs.scrollHeight;
+  return b;
+}
+
+/* 文件操作确认卡片（纯 C 服务用） */
+function addProposal(p) {
+  const opName = p.op === 'delete' ? '删除文件' : p.op === 'mkdir' ? '创建目录'
+               : p.op === 'append' ? '追加内容' : '写入文件';
+  const row = document.createElement('div');
+  row.className = 'row ai';
+  const av = document.createElement('div');
+  av.className = 'avatar-sm';
+  av.textContent = 'AI';
+  const card = document.createElement('div');
+  card.className = 'card';
+  const head = document.createElement('div');
+  head.className = 't';
+  head.textContent = '⚠ 需要你确认';
+  const line = document.createElement('div');
+  line.textContent = '操作：' + opName;
+  const path = document.createElement('div');
+  path.className = 'p';
+  path.textContent = p.path || '';
+  const btns = document.createElement('div');
+  btns.className = 'btns';
+  const ok = document.createElement('button');
+  ok.className = 'ok';
+  ok.textContent = '允许';
+  const no = document.createElement('button');
+  no.className = 'no';
+  no.textContent = '拒绝';
+  btns.appendChild(ok); btns.appendChild(no);
+  card.appendChild(head); card.appendChild(line); card.appendChild(path); card.appendChild(btns);
+  row.appendChild(av); row.appendChild(card);
+  msgs.appendChild(row);
+  msgs.scrollTop = msgs.scrollHeight;
+  async function decide(allow) {
+    ok.disabled = true; no.disabled = true;
+    try {
+      const r = await fetch('/fs/exec', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: p.id, allow: allow ? 1 : 0 })
+      });
+      const d = await r.json();
+      addBubble(d.msg || (allow ? '已执行。' : '已取消。'), 'ai');
+    } catch (e) {
+      addBubble('执行失败：连接不到服务。', 'ai');
+    }
+  }
+  ok.onclick = () => decide(true);
+  no.onclick = () => decide(false);
+}
+
+async function newChat() {
+  try {
+    const r = await fetch('/new', { method: 'POST' });
+    const d = await r.json();
+    current = d.id;
+  } catch (e) { current = null; }
+  msgs.innerHTML = '';
+  addBubble('新会话。有什么想聊的，或者要我帮你改文件？', 'ai');
+  await loadSessions();
+  inp.focus();
+}
+
+async function loadSessions() {
+  try {
+    const r = await fetch('/sessions');
+    const d = await r.json();
+    sessionsEl.innerHTML = '';
+    if (!d.sessions || !d.sessions.length) {
+      sessionsEl.innerHTML = '<div class="hint">还没有对话<br>在右边发一条消息开始</div>';
+      return;
+    }
+    for (const s of d.sessions) {
+      const el = document.createElement('div');
+      el.className = 'sess' + (s.id === current ? ' active' : '');
+      el.textContent = s.title || '新会话';
+      el.title = s.title || '';
+      el.onclick = () => openSession(s.id);
+      sessionsEl.appendChild(el);
+    }
+  } catch (e) { /* 忽略 */ }
+}
+
+async function openSession(id) {
+  current = id;
+  const r = await fetch('/session?id=' + encodeURIComponent(id));
+  const d = await r.json();
+  msgs.innerHTML = '';
+  for (const line of (d.log || '').split('\n')) {
+    if (line.startsWith('### User: ')) addBubble(line.slice(10), 'user');
+    else if (line.startsWith('### Assistant: ')) addBubble(line.slice(15), 'ai');
+  }
+  await loadSessions();
+}
+
+async function ask() {
+  const text = inp.value.trim();
+  if (!text) return;
+  addBubble(text, 'user');
+  inp.value = '';
+  inp.style.height = '48px';
+  send.disabled = true;
+  typing.style.display = 'flex';
+  msgs.scrollTop = msgs.scrollHeight;
+
+  let acc = '', usage = null, sid = current;
+  const bubble = addBubble('', 'ai');
+  try {
+    const resp = await fetch('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, session: current || '' })
+    });
+    if (!resp.ok || !resp.body) throw new Error('bad response');
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, i).trim();
+        buf = buf.slice(i + 1);
+        if (!line.startsWith('data:')) continue;
+        const p = line.slice(5).trim();
+        if (p === '[DONE]') continue;
+        let obj;
+        try { obj = JSON.parse(p); } catch (e) { continue; }
+        if (obj.delta) {
+          typing.style.display = 'none';
+          acc += obj.delta;
+          bubble.textContent = acc;              /* 流式阶段用纯文本 */
+          msgs.scrollTop = msgs.scrollHeight;
+        }
+        if (obj.usage) usage = obj.usage;
+        if (obj.session) sid = obj.session;
+      }
+    }
+    if (usage && usage.out === 0 && usage.in === 0) usage = null;
+  } catch (e) {
+    if (!acc) bubble.textContent = '连接不到本地服务，请确认服务已启动。';
+  }
+  typing.style.display = 'none';
+  if (!acc) bubble.textContent = '（没有收到回复）';
+  else bubble.innerHTML = renderMD(acc);        /* 结束后渲染 markdown */
+  if (usage) {
+    const wrap = bubble.parentNode;
+    const meta = wrap.querySelector('.meta');
+    const u = document.createElement('span');
+    u.className = 'usage';
+    u.textContent = '↑' + usage.in + ' ↓' + usage.out + ' · ' + usage.total + ' 字 · 模型 ' + usage.model + ' token';
+    if (meta) meta.appendChild(u);
+  }
+  if (sid) current = sid;
+  send.disabled = false;
+  inp.focus();
+  await loadSessions();
+}
+
+document.getElementById('newchat').addEventListener('click', newChat);
+send.addEventListener('click', ask);
+inp.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ask(); }
+});
+inp.addEventListener('input', () => {
+  inp.style.height = '48px';
+  inp.style.height = Math.min(inp.scrollHeight, 150) + 'px';
+});
+
+loadSessions();
+const first = addBubble('你好！我是 AI 助手，本机离线运行。\n可以问我问题，也可以让我帮你改文件、跑测试。', 'ai');
+const sug = document.createElement('div');
+sug.className = 'suggests';
+const presets = ['什么是特征向量？', '向量内积的几何意义', '矩阵乘法的三个视角', '格拉姆矩阵有什么用'];
+for (const p of presets) {
+  const c = document.createElement('button');
+  c.className = 'chip';
+  c.textContent = p;
+  c.onclick = () => { inp.value = p; ask(); };
+  sug.appendChild(c);
+}
+first.parentNode.appendChild(sug);
+inp.focus();
+</script>
+</body>
+</html>

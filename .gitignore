@@ -1,0 +1,62 @@
+# ===== 大文件与第三方内容：不进版本库 =====
+# 模型权重（GB 级，单独备份）
+*.gguf
+*.bin
+*.safetensors
+*.ckpt
+
+# 第三方书籍与代码（体积大、非本项目代码）
+LAwPY/
+elements of math/
+llama.cpp/
+
+# 训练数据（几十到上百 MB）
+data/*.parquet
+data/*.csv
+data/*.json
+data/*.txt
+!data/README.md
+
+# 部署包（服务器上的安装包，2 GB+）
+deploy/dist/
+deploy/package/
+deploy/stage/
+*.zip
+
+# 编译产物
+*.exe
+*.o
+*.obj
+*.lib
+*.dll
+*.so
+*.pdb
+
+# 运行产物
+logs/
+sessions/
+*.log
+chat_log.txt
+
+# Python 环境
+.venv/
+venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# 编辑器与系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 临时文件
+*.tmp
+*.bak
+_*.txt
+
+# 运行时产生的对话记录与训练产物
+data/r1_sessions/
+data/lora_r1/
