@@ -57,53 +57,52 @@ function Invoke-Git($argList) {
 
 # ---------------------------------------------------------------- 校验模式
 if ($Verify) {
-    Write-Host "=== 三处文件一致性校验 ===" -ForegroundColor Cyan
+    Write-Host "=== 一致性校验 ===" -ForegroundColor Cyan
     $allOk = $true
 
+    # 逐文件比较：本地 MD5 vs 服务器 MD5（md5sum 输出小写，比较时忽略大小写）
     foreach ($f in $DeployFiles) {
         $localPath = Join-Path $Repo $f.Local
         $localMd5 = Get-Md5 $localPath
 
-        # 服务器端 MD5
-        $remoteMd5 = (Invoke-Ssh "md5sum $RemoteDir/$($f.Remote) 2>/dev/null | cut -d' ' -f1")
+        $raw = Invoke-Ssh "md5sum $RemoteDir/$($f.Remote) 2>/dev/null | cut -d' ' -f1"
+        $remoteMd5 = ($raw -replace '[^0-9a-fA-F]', '')   # 只保留十六进制字符
         if (-not $remoteMd5) { $remoteMd5 = "MISSING" }
 
-        # GitHub 端 MD5：从 git 索引取出内容算哈希
-        $gitMd5 = "N/A"
-        Push-Location $Repo
-        $gitShow = & git show "HEAD:$($f.Local.Replace('\','/'))" 2>$null
-        $showCode = $LASTEXITCODE
-        Pop-Location
-        if ($showCode -eq 0 -and $gitShow) {
-            # 写入临时文件后计算 MD5，避免编码差异
-            $tmp = [System.IO.Path]::GetTempFileName()
-            Set-Content -Path $tmp -Value ($gitShow -join "`r`n") -NoNewline -Encoding UTF8
-            $gitMd5 = Get-Md5 $tmp
-            Remove-Item $tmp -Force -ErrorAction SilentlyContinue
-        }
-
-        $same = ($localMd5 -ieq $remoteMd5 -and $localMd5 -ieq $gitMd5)
+        $same = ($localMd5 -ieq $remoteMd5)
         if (-not $same) { $allOk = $false }
         $color = if ($same) { 'Green' } else { 'Red' }
         $mark = if ($same) { 'OK' } else { 'DIFF' }
-
-        Write-Host ("  {0,-16} 本地 {1} | GitHub {2} | 服务器 {3}  {4}" -f `
+        Write-Host ("  {0,-16} 本地 {1}  服务器 {2}  {3}" -f `
             $f.Remote,
             $localMd5.Substring(0, [Math]::Min(8, $localMd5.Length)),
-            $gitMd5.Substring(0, [Math]::Min(8, $gitMd5.Length)),
-            $remoteMd5.Substring(0, [Math]::Min(8, $remoteMd5.Length)),
+            $(if ($remoteMd5 -eq 'MISSING') { 'MISSING ' } else { $remoteMd5.Substring(0, [Math]::Min(8, $remoteMd5.Length)) }),
             $mark) -ForegroundColor $color
     }
 
+    # GitHub 一致性：本地 HEAD 与远程 main 相同，且工作区无未提交改动
+    Push-Location $Repo
+    $localHead = (& git rev-parse HEAD 2>$null | Out-String).Trim()
+    $remoteHead = (& git rev-parse origin/main 2>$null | Out-String).Trim()
+    $dirty = (& git status --porcelain 2>$null | Out-String).Trim()
+    Pop-Location
+
+    $gitOk = ($localHead -eq $remoteHead) -and (-not $dirty)
+    if (-not $gitOk) { $allOk = $false }
+    Write-Host ("  GitHub        本地 {0}  远程 {1}  未提交改动 {2}  {3}" -f `
+        $localHead.Substring(0, [Math]::Min(8, $localHead.Length)),
+        $remoteHead.Substring(0, [Math]::Min(8, $remoteHead.Length)),
+        $(if ($dirty) { '有' } else { '无' }),
+        $(if ($gitOk) { 'OK' } else { 'DIFF' })) -ForegroundColor $(if ($gitOk) { 'Green' } else { 'Red' })
+
     if ($allOk) {
-        Write-Host "`n三处完全一致" -ForegroundColor Green
+        Write-Host "`n三处一致：本地 = GitHub = 服务器" -ForegroundColor Green
         exit 0
     } else {
         Write-Host "`n存在不一致，请重新运行同步" -ForegroundColor Red
         exit 1
     }
 }
-
 
 # ---------------------------------------------------------------- 提交
 Write-Host "=== 1/5 提交到本地 Git ===" -ForegroundColor Cyan

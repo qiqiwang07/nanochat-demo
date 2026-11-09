@@ -18,10 +18,11 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
-BIN_DIR = r"C:\Users\Lenovo\ai\nanochat-demo\bin"
-SESS_DIR = r"C:\Users\Lenovo\ai\nanochat-demo\data\r1_sessions"
-CORPUS = r"C:\Users\Lenovo\ai\nanochat-demo\data\book_corpus.txt"
-OLYMPIAD = r"C:\Users\Lenovo\ai\nanochat-demo\data\olympiad_index.json"
+HERE = os.path.dirname(os.path.abspath(__file__))  # 本文件目录，兼容 Windows/Linux
+BIN_DIR = HERE
+SESS_DIR = os.path.join(HERE, "sessions")  # 会话记录放在脚本同级 sessions 目录
+CORPUS = os.path.join(HERE, "corpus.txt")  # 教材语料
+OLYMPIAD = os.path.join(HERE, "olympiad_index.json")  # 奥数题库索引
 
 LLAMA = "http://127.0.0.1:8080/v1/chat/completions"
 MAX_NEW = 800
