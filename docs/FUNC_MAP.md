@@ -8,8 +8,8 @@
 | 指标 | 数值 |
 |---|---|
 | 文件数 | 48 |
-| 函数总数 | 556 |
-| 调用关系统计 | 2801 条 |
+| 函数总数 | 557 |
+| 调用关系统计 | 2827 条 |
 
 | 文件 | 函数数 |
 |---|---|
@@ -57,7 +57,7 @@
 | `tools/make_test.py` | 2 |
 | `tools/merge_ai.py` | 1 |
 | `tools/patch_verbose.py` | 1 |
-| `tools/serve_r1.py` | 17 |
+| `tools/serve_r1.py` | 18 |
 | `tools/server_part.c` | 7 |
 | `tools/test_main.c` | 1 |
 | `tools/train_lora.py` | 1 |
@@ -3434,6 +3434,12 @@
 
 **被调用：** `deploy/stage/agent_r1.py :: do_GET`、`deploy/stage/agent_r1.py :: do_POST`、`deploy/stage/serve_r1.py :: do_GET`、`deploy/stage/serve_r1.py :: do_POST`、`tools/agent_r1.py :: do_GET`、`tools/agent_r1.py :: do_POST`、`tools/serve_r1.py :: do_GET`、`tools/serve_r1.py :: do_POST`
 
+### `_serve_file()`
+
+**调用：** `basename`、`end_headers`、`endswith`、`get`、`getsize`、`int`、`isfile`、`join`、`len`、`lower`、`min`、`open`、`partition`、`print`、`read`、`seek`、`send_header`、`send_response`、`split`、`startswith`、`str`、`strip`、`write`
+
+**被调用：** `tools/serve_r1.py :: do_GET`
+
 ### `build_index()`
 
 **调用：** `_grams`、`append`、`exists`、`len`、`max`、`open`、`print`、`range`、`read`、`strip`、`time`
@@ -3442,7 +3448,7 @@
 
 ### `do_GET()`
 
-**调用：** `_send`、`dumps`、`encode`、`get`、`items`、`join`、`open`、`parse_qs`、`read`、`sort`、`urlparse`
+**调用：** `_send`、`_serve_file`、`dumps`、`encode`、`get`、`items`、`join`、`open`、`parse_qs`、`read`、`sort`、`startswith`、`urlparse`
 
 **被调用：** 无（入口函数或未被引用）
 
