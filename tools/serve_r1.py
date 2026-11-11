@@ -394,14 +394,32 @@ class Handler(BaseHTTPRequestHandler):
             s["messages"].append({"role": "user", "content": text})  # 先记录用户消息
             if not s["title"]:  # 标题只在第一条消息时设置
                 s["title"] = text[:20]  # 取前 20 字做标题，够用又不撑破侧边栏
+            # 判断是不是写作任务：作文要的是成篇的文字，和"问知识点"完全不同，需要单独处理
+            essay_kw = ("作文", "议论文", "记叙文", "说明文", "散文", "写一篇", "写段", "写一封",
+                        "帮我写", "演讲稿", "读后感", "观后感")
+            is_essay = any(k in text for k in essay_kw)  # 命中任一关键词即视为写作任务
             math_hits = retrieve_olympiad(text, 1)  # 先判断是不是数学题，数学题才检索题库
             hits = retrieve(text, 1)  # 只取 1 段：片段越多预填充越慢，首字延迟越高
+            style_hits = retrieve("好词好句 优美句子 名言警句 开头 结尾 排比 描写", 1) if is_essay else []  # 写作任务额外取一段素材
             msgs = list(s["messages"])  # 复制一份对话历史，避免改动原始记录
             brief = ("回答要详实自然，像跟朋友解释一样：把内容讲清楚，可以举例。"  # 只提要求不列结构，避免被照抄成小标题
                      "篇幅 300-600 字。"  # 控制篇幅
                      "直接给内容，不要写“先说结论/解释为什么/补充要点”这类格式说明，"  # 明确禁止复述提示词
                      "也不要写“好的/我来想想/首先”，不要复述题目。")  # 禁止开场空话
-            if math_hits:  # 是数学题：注入相似题与标准解答
+            if is_essay:  # 写作任务：要求成篇、有结构、有文采
+                ref = ("\n\n【可参考的好词好句】\n" + style_hits[0][:300]) if style_hits else ""  # 素材截短，控制预填充
+                msgs = s["messages"][:-1] + [{
+                    "role": "user",
+                    "content": ("请写一篇完整的作文。\n"
+                                "要求：\n"
+                                "1. 结构完整：开头点题，中间分 3-4 段展开，结尾升华；\n"
+                                "2. 内容具体：多用具体事例、细节描写，不要空喊口号；\n"
+                                "3. 语言有文采：适当使用成语、排比、比喻，可引用诗词或名言；\n"
+                                "4. 篇幅 700-900 字；\n"
+                                "5. 直接给正文，不要解释你的写作思路。\n\n"
+                                "题目：" + text + ref)}]
+                req_max = 2200  # 800 字中文大约要 700-900 token，留足余量防止被截断
+            elif math_hits:  # 是数学题：注入相似题与标准解答
                 refs = "\n\n".join(  # 把多道参考题拼成一段
                     "【相似题%d】\n题目：%s\n标准解答：%s" % (i + 1, q, a[:500])  # 解答截到 500 字：只保留思路即可，太长会拖慢预填充
                     for i, (sc, q, a) in enumerate(math_hits))  # 逐条格式化
@@ -419,8 +437,9 @@ class Handler(BaseHTTPRequestHandler):
                 msgs = s["messages"][:-1] + [{"role": "user", "content": grounded}]  # 同样替换最后一条
             else:  # 都没有：直接回答
                 msgs = s["messages"][:-1] + [{"role": "user", "content": text + "\n\n" + brief}]  # 只加回答要求
-            ref_count = len(math_hits) + (0 if math_hits else len(hits))  # 统计参考了多少条，前端可展示
-            req_max = max(MAX_NEW, 3000) if math_hits else MAX_NEW  # 数学题解答长，给更大额度
+            ref_count = len(math_hits) + (0 if math_hits else len(hits)) + len(style_hits)  # 统计参考了多少条，前端可展示
+            if not is_essay:  # 写作分支已自行设过额度，其余按题目类型给
+                req_max = max(MAX_NEW, 3000) if math_hits else MAX_NEW  # 数学题解答长，给更大额度
             self.send_response(200)  # 开始流式响应
             self.send_header("Content-Type", "text/event-stream; charset=utf-8")  # SSE 类型
             self.send_header("Cache-Control", "no-store")  # 流式内容不能缓存
