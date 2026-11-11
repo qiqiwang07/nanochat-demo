@@ -398,7 +398,7 @@ class Handler(BaseHTTPRequestHandler):
                             + refs + "\n\n【需要解答的题目】\n" + text)  # 拼上真正要答的题目
                 msgs = s["messages"][:-1] + [{"role": "user", "content": grounded}]  # 用注入后的提示替换最后一条用户消息
             elif hits:  # 不是数学题但有教材片段：注入背景材料
-                ctx = "\n\n".join(h[:320] for h in hits)  # 每段截到 320 字，约 200 token，兼顾信息量与速度
+                ctx = "\n\n".join(h[:200] for h in hits)  # 每段截到 200 字，约 130 token：预填充是首字延迟的主因，上下文越短越快
                 grounded = ("以下是一些参考材料，请据此回答。不要说明内容来自哪里，"  # 提示模型别说出处
                             "不要提资料、教材或书名。" + brief + "\n\n" + ctx + "\n\n问题：" + text)  # 材料 + 要求 + 问题
                 msgs = s["messages"][:-1] + [{"role": "user", "content": grounded}]  # 同样替换最后一条
