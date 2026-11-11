@@ -35,6 +35,8 @@ MAX_NEW = 800  # 默认单次最多生成多少 token，可通过 --max-new 覆�
 sessions = {}  # 内存中的会话表：{会话ID: {"title": 标题, "messages": [{"role","content"}]}}
 chunks = []  # 教材切块后的文本片段，供检索使用
 chunk_grams = []  # 与 chunks 一一对应的字符二元组集合，预先算好避免每次查询重复计算
+gram_df = {}  # 每个二元组出现在多少个片段里（文档频率），用于算 IDF 权重
+gram_idf = {}  # 预先算好的逆文档频率：越罕见的词权重越高
 olympiad = []  # 奥数题库：[{"q": 题目, "a": 标准解答, "_g": 题干二元组集合}]
 lock = threading.Lock()  # 保护 sessions 的并发访问，HTTP 服务是多线程的
 
@@ -112,6 +114,14 @@ def build_index(path: str, size: int = 400, overlap: int = 60) -> None:
             raw.append(c)  # 收下这个片段
     chunk_grams = [_grams(c) for c in raw]  # 一次性算完所有片段的二元组
     chunks = raw  # 替换模块级引用
+    # 统计文档频率：一个二元组出现在越多片段里，说明它越普通（如"的作""作者"），检索时应该降权
+    global gram_df, gram_idf
+    gram_df = {}
+    for gs in chunk_grams:  # 遍历每个片段
+        for g in gs:  # 逐个二元组
+            gram_df[g] = gram_df.get(g, 0) + 1  # 计数
+    n = max(1, len(chunks))  # 片段总数
+    gram_idf = {g: __import__("math").log(1.0 + n / df) for g, df in gram_df.items()}  # IDF = ln(1 + N/df)
     print(f"教材索引: {len(chunks)} 段，{len(text)/1e6:.1f} M 字符，用时 {time.time()-t0:.1f}s", flush=True)  # 启动日志
 
 
@@ -129,9 +139,14 @@ def retrieve(query: str, k: int = 4) -> list:
     for i, dg in enumerate(chunk_grams):  # 遍历所有片段
         if not dg:  # 空片段跳过
             continue  # 下一条
-        inter = len(qg & dg)  # 共同二元组数量
-        if inter >= 3:  # 门槛比题库低，因为教材是泛泛背景，不必精准
-            scored.append((inter / (len(dg) ** 0.5), i))  # 只做单向归一化，长片段不会过度占优
+        common = qg & dg  # 共同出现的二元组
+        if len(common) < 2:  # 少于 2 个共同二元组基本是巧合，直接跳过
+            continue  # 下一条
+        # IDF 加权求和：命中"静夜""夜思"这类稀有词得分高，命中"作者""是什么"这类常见词得分低
+        s = 0.0
+        for g in common:
+            s += gram_idf.get(g, 1.0)  # 没见过的词给默认权重 1
+        scored.append((s / (len(dg) ** 0.25), i))  # 只做很弱的长度归一化，长片段仍可胜出
     scored.sort(reverse=True)  # 分数高的在前
     return [chunks[i] for _, i in scored[:k]]  # 返回片段文本
 
