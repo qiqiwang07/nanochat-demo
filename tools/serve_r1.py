@@ -380,7 +380,7 @@ class Handler(BaseHTTPRequestHandler):
             if not s["title"]:  # 标题只在第一条消息时设置
                 s["title"] = text[:20]  # 取前 20 字做标题，够用又不撑破侧边栏
             math_hits = retrieve_olympiad(text, 1)  # 先判断是不是数学题，数学题才检索题库
-            hits = retrieve(text, 2)  # 再检索教材片段作为背景知识
+            hits = retrieve(text, 1)  # 只取 1 段：片段越多预填充越慢，首字延迟越高
             msgs = list(s["messages"])  # 复制一份对话历史，避免改动原始记录
             brief = ("回答要详实自然，像跟朋友解释一样：把内容讲清楚，可以举例。"  # 只提要求不列结构，避免被照抄成小标题
                      "篇幅 300-600 字。"  # 控制篇幅
@@ -398,7 +398,7 @@ class Handler(BaseHTTPRequestHandler):
                             + refs + "\n\n【需要解答的题目】\n" + text)  # 拼上真正要答的题目
                 msgs = s["messages"][:-1] + [{"role": "user", "content": grounded}]  # 用注入后的提示替换最后一条用户消息
             elif hits:  # 不是数学题但有教材片段：注入背景材料
-                ctx = "\n\n".join(hits)  # 拼接片段
+                ctx = "\n\n".join(h[:320] for h in hits)  # 每段截到 320 字，约 200 token，兼顾信息量与速度
                 grounded = ("以下是一些参考材料，请据此回答。不要说明内容来自哪里，"  # 提示模型别说出处
                             "不要提资料、教材或书名。" + brief + "\n\n" + ctx + "\n\n问题：" + text)  # 材料 + 要求 + 问题
                 msgs = s["messages"][:-1] + [{"role": "user", "content": grounded}]  # 同样替换最后一条
