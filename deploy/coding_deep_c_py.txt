@@ -1,0 +1,458 @@
+C 语言深度知识
+
+C 程序的构建过程分四步：预处理（展开宏和头文件）、编译（源码到汇编）、汇编（汇编到目标文件）、链接（多个目标文件合成可执行文件）。
+
+常用 gcc 选项：-c 只编译不链接、-o 指定输出名、-O2 开优化、-g 保留调试信息、-Wall 打开所有警告、-std=c11 指定标准、-I 加头文件路径、-L 加库路径、-l 链接库。
+
+编译警告一定要看：隐式声明函数、未初始化变量、类型不匹配、数组越界提示，这些都是真 bug 的前兆。
+
+C 的基本类型大小：char 1 字节、short 2 字节、int 4 字节、long 在 64 位 Linux 上 8 字节、float 4 字节、double 8 字节、指针 8 字节（64 位）。
+
+整数溢出是有符号未定义行为，无符号是回绕。判断两个 int 相加是否溢出：先转成 long long 再比较。
+
+无符号数的陷阱：for (unsigned i = n; i >= 0; i--) 是死循环，因为 i 永远不小于 0。
+
+浮点数不要用 == 比较，用 fabs(a - b) < 1e-9。
+
+内存分区：栈放局部变量和函数调用信息，堆放 malloc 申请的内存，全局/静态区放全局变量和 static 变量，常量区放字符串字面量，代码区放指令。
+
+栈的大小通常 8MB，递归太深会栈溢出；堆可以到几 GB，但申请后必须 free。
+
+C 指针进阶
+
+指针数组：int *a[10] 是 10 个指针组成的数组。
+
+数组指针：int (*p)[10] 是指向 10 个 int 数组的指针。区别只在括号。
+
+函数指针：int (*fp)(int, int) 指向返回 int、收两个 int 的函数。用作回调。
+
+二级指针：int **p 用于修改指针本身，或表示二维数组。
+
+传参规则：想在函数里修改外部变量的值，要传它的地址。
+
+指针运算：p + 1 前进的是 sizeof(*p) 字节，不是 1 字节。
+
+void * 是通用指针，可以接任何类型指针，但用它之前必须转回具体类型。
+
+C 字符串函数的标准实现
+
+size_t my_strlen(const char *s) {
+    const char *p = s;
+    while (*p) p++;          /* 一直走到 \0 */
+    return (size_t)(p - s);  /* 指针相减得到长度 */
+}
+
+char *my_strcpy(char *dst, const char *src) {
+    char *p = dst;
+    while ((*p++ = *src++) != '\0') ;   /* 边复制边判断 */
+    return dst;
+}
+
+int my_strcmp(const char *a, const char *b) {
+    while (*a && *a == *b) { a++; b++; }   /* 相同就一起前进 */
+    return (unsigned char)*a - (unsigned char)*b;   /* 转无符号避免符号位影响 */
+}
+
+void *my_memcpy(void *dst, const void *src, size_t n) {
+    unsigned char *d = (unsigned char *)dst;
+    const unsigned char *s = (const unsigned char *)src;
+    while (n--) *d++ = *s++;   /* 按字节复制，不受 \0 影响 */
+    return dst;
+}
+
+C 结构体与内存对齐
+
+结构体成员按对齐要求填充，顺序影响大小。把大类型放前面能减少填充。
+
+#pragma pack(1) 可以取消对齐，但会降低访问速度，只在解析二进制协议时用。
+
+typedef struct { int x; int y; } Point; 定义并起别名。
+
+用 . 访问结构体成员，用 -> 访问结构体指针的成员。
+
+C 预处理器
+
+宏定义：#define MAX(a, b) ((a) > (b) ? (a) : (b)) 参数和整体都要加括号，否则 MAX(x+1, y) * 2 会算错。
+
+带副作用的参数不要传给宏，因为宏会展开多次。
+
+条件编译：#ifdef DEBUG / #ifndef HEADER_H / #endif。
+
+头文件保护：每个 .h 文件都要有 #ifndef XXX_H / #define XXX_H / #endif。
+
+C 链表完整操作
+
+typedef struct Node {
+    int val;
+    struct Node *next;
+} Node;
+
+Node *list_create(int val) {
+    Node *n = (Node *)malloc(sizeof(Node));
+    if (!n) return NULL;          /* 申请失败要检查 */
+    n->val = val;
+    n->next = NULL;
+    return n;
+}
+
+void list_push_front(Node **head, int val) {
+    Node *n = list_create(val);
+    if (!n) return;
+    n->next = *head;              /* 新节点指向原来的头 */
+    *head = n;                    /* 更新头指针 */
+}
+
+void list_free(Node *head) {
+    while (head) {
+        Node *next = head->next;  /* 先存下一个，否则 free 后就取不到了 */
+        free(head);
+        head = next;
+    }
+}
+
+Node *list_reverse(Node *head) {
+    Node *prev = NULL;
+    while (head) {
+        Node *next = head->next;
+        head->next = prev;
+        prev = head;
+        head = next;
+    }
+    return prev;
+}
+
+C 哈希表实现
+
+#define HSIZE 1024
+
+typedef struct Entry {
+    char *key;
+    int value;
+    struct Entry *next;   /* 拉链法解决冲突 */
+} Entry;
+
+static Entry *table[HSIZE];
+
+static unsigned hash(const char *s) {
+    unsigned h = 5381;
+    while (*s) h = h * 33 + (unsigned char)*s++;   /* djb2 哈希 */
+    return h % HSIZE;
+}
+
+int hash_get(const char *key, int *out) {
+    for (Entry *e = table[hash(key)]; e; e = e->next) {
+        if (strcmp(e->key, key) == 0) { *out = e->value; return 1; }
+    }
+    return 0;
+}
+
+void hash_put(const char *key, int value) {
+    unsigned h = hash(key);
+    for (Entry *e = table[h]; e; e = e->next) {
+        if (strcmp(e->key, key) == 0) { e->value = value; return; }   /* 已存在就更新 */
+    }
+    Entry *e = (Entry *)malloc(sizeof(Entry));
+    if (!e) return;
+    e->key = strdup(key);        /* 必须复制，调用方可能复用缓冲 */
+    e->value = value;
+    e->next = table[h];          /* 头插法 */
+    table[h] = e;
+}
+
+C 文件操作完整示例
+
+#include <stdio.h>
+
+int copy_file(const char *src, const char *dst) {
+    FILE *in = fopen(src, "rb");
+    if (!in) { perror("打开源文件失败"); return -1; }
+    FILE *out = fopen(dst, "wb");
+    if (!out) { perror("打开目标文件失败"); fclose(in); return -1; }
+
+    char buf[8192];
+    size_t n;
+    while ((n = fread(buf, 1, sizeof buf, in)) > 0) {   /* 分块读，别一次全读进内存 */
+        if (fwrite(buf, 1, n, out) != n) {              /* 写不全说明磁盘或权限有问题 */
+            perror("写入失败");
+            fclose(in); fclose(out);
+            return -1;
+        }
+    }
+    fclose(in);
+    fclose(out);
+    return 0;
+}
+
+C 错误处理
+
+系统调用失败会设置 errno，用 perror 或 strerror(errno) 打印原因。
+
+malloc 返回 NULL 表示内存不足，必须检查。
+
+文件操作、网络操作、输入解析的返回值都要检查，不要假设成功。
+
+C 常见坑 20 条
+
+1 数组越界不报错，只会悄悄写坏内存。
+2 忘记初始化局部变量，里面是随机值。
+3 字符串忘记 \0 结尾，strlen 会读飞。
+4 free 之后继续用，指针变野指针。
+5 同一次 malloc 被 free 两次。
+6 返回局部数组的地址，函数返回后内存已回收。
+7 用 = 代替 == 判断相等。
+8 if (a = 5) 恒为真。
+9 scanf 不检查返回值，读到脏数据。
+10 用 gets 读字符串，缓冲区溢出。
+11 中文字符串按字节截断会乱码。
+12 int 存不下大数，该用 long long。
+13 除数为 0 直接崩溃。
+14 结构体里有指针，浅拷贝会双重释放。
+15 数组名和指针不完全等价，sizeof 结果不同。
+16 头文件里定义变量，多个源文件链接冲突。
+17 宏参数没加括号，运算优先级错乱。
+18 浮点累加误差，求和顺序影响结果。
+19 递归没有出口，栈溢出。
+20 忘记关闭文件描述符，句柄泄漏。
+
+C 调试工具
+
+gdb 常用命令：run 运行、break 行号下断点、next 下一步、step 进入函数、print 变量、backtrace 看调用栈、continue 继续。
+
+valgrind --leak-check=full ./程序 可以检测内存泄漏和非法访问。
+
+gcc -fsanitize=address 编译时插桩，运行时报出越界和 Use-After-Free 的精确位置。
+
+Python 进阶知识
+
+列表推导式：[x * 2 for x in nums if x > 0]，比 for 循环快也更清晰。
+
+字典推导式：{k: v for k, v in items}。集合推导式：{x for x in nums}。
+
+生成器：把 return 换成 yield，逐个产出，省内存。适合处理大文件。
+
+迭代器协议：实现 __iter__ 和 __next__。
+
+生成器表达式：(x * 2 for x in nums)，注意是圆括号。
+
+闭包：内层函数引用外层变量，外层返回内层函数。
+
+装饰器：接收函数返回函数，用于加日志、计时、缓存、权限校验。
+
+from functools import wraps
+
+def timer(func):
+    @wraps(func)                  # 保留原函数的名字和文档
+    def wrapper(*args, **kwargs):
+        import time
+        t0 = time.time()
+        result = func(*args, **kwargs)
+        print(f"{func.__name__} 耗时 {time.time() - t0:.3f}s")
+        return result
+    return wrapper
+
+@timer
+def slow_task():
+    import time; time.sleep(1)
+
+上下文管理器：with 语句，实现 __enter__ 和 __exit__，或用 @contextmanager。
+
+类型注解：def add(a: int, b: int) -> int: 便于静态检查和阅读，运行时不强制。
+
+dataclass：@dataclass 自动生成 __init__、__repr__、__eq__，减少样板代码。
+
+from dataclasses import dataclass
+
+@dataclass
+class Point:
+    x: int
+    y: int
+    label: str = "点"
+
+Python 常用技巧
+
+同时遍历下标和值：for i, v in enumerate(nums):
+
+同时遍历两个列表：for a, b in zip(list1, list2):
+
+交换变量：a, b = b, a
+
+三元表达式：x if cond else y
+
+链式比较：0 < x < 10
+
+解包：a, *rest = nums；head, *tail = nums
+
+合并字典：{**d1, **d2} 或 d1 | d2（3.9+）
+
+反转序列：nums[::-1]
+
+计数用 Counter，分组用 defaultdict(list)，双端队列用 deque，有序字典现在普通 dict 就保序。
+
+缓存加速：@lru_cache(maxsize=None) 让递归函数记住结果。
+
+Python 文件与路径
+
+Path 对象：from pathlib import Path；p = Path("data") / "a.txt"；p.exists()；p.read_text(encoding="utf-8")。
+
+遍历目录：Path(".").glob("*.py")；递归用 rglob("**/*.txt")。
+
+CSV：import csv；csv.reader / csv.writer / csv.DictReader。
+
+JSON：json.load / json.dump，注意 ensure_ascii=False 保留中文。
+
+二进制：open(path, "rb") 读字节。
+
+Python 正则实战
+
+import re
+
+re.search(r"\d+", s)            # 找第一个数字串
+re.findall(r"\d+", s)           # 找出所有数字串
+re.sub(r"\s+", " ", s)          # 压缩空白
+re.split(r"[,，]", s)           # 按中英文逗号切分
+re.match(r"^\w+@\w+\.\w+$", s)  # 从头匹配邮箱
+
+常用元字符：\d 数字、\w 字母数字下划线、\s 空白、. 任意字符、* 零或多次、+ 一次或多次、? 零或一次、{n,m} 次数范围、^ 开头、$ 结尾、[] 字符集、() 分组。
+
+贪婪与非贪婪：.* 尽可能多，.*? 尽可能少。
+
+Python 并发
+
+threading：适合 IO 密集型，受 GIL 限制不适合纯计算。
+
+multiprocessing：绕开 GIL，适合 CPU 密集型。
+
+asyncio：单线程事件循环，适合大量网络请求。
+
+from concurrent.futures import ThreadPoolExecutor
+
+with ThreadPoolExecutor(max_workers=8) as pool:
+    results = list(pool.map(process, items))
+
+Python 类进阶
+
+继承：class Dog(Animal):，用 super().__init__() 调用父类构造。
+
+魔术方法：__str__ 打印友好、__repr__ 调试友好、__len__、__getitem__、__eq__、__lt__。
+
+property：把方法当属性访问，可以做校验。
+
+class Temp:
+    def __init__(self):
+        self._c = 0
+
+    @property
+    def celsius(self):
+        return self._c
+
+    @celsius.setter
+    def celsius(self, v):
+        if v < -273.15:
+            raise ValueError("低于绝对零度")
+        self._c = v
+
+classmethod 和 staticmethod：前者第一个参数是类，后者没有隐式参数。
+
+Python 性能优化
+
+优先用内置函数和库函数，它们用 C 实现。
+
+避免在循环里反复 append，先用列表推导式。
+
+字符串拼接用 "".join(list)，不要用 += 累加。
+
+查表代替重复计算。
+
+用 set 判断存在性而不是 list。
+
+大量数值计算用 numpy。
+
+先测量再优化：用 timeit 或 cProfile 找出真正的瓶颈。
+
+Python 常用脚本模板
+
+批量重命名：
+
+from pathlib import Path
+
+for i, p in enumerate(sorted(Path(".").glob("*.jpg")), 1):
+    p.rename(p.with_name(f"img_{i:03d}{p.suffix}"))
+
+命令行参数：
+
+import argparse
+
+ap = argparse.ArgumentParser(description="示例脚本")
+ap.add_argument("path", help="输入文件")
+ap.add_argument("--n", type=int, default=10, help="数量")
+args = ap.parse_args()
+
+读取大文件：
+
+with open(path, encoding="utf-8") as f:
+    for line in f:        # 逐行读，不会把整个文件读进内存
+        process(line.rstrip("\n"))
+
+Python 日志：
+
+import logging
+logging.basicConfig(level=logging.INFO,
+                    format="%(asctime)s %(levelname)s %(message)s")
+logging.info("开始处理")
+
+Python 测试
+
+unittest：继承 TestCase，方法名以 test_ 开头，用 assertEqual 断言。
+
+pytest：直接写函数 def test_add(): assert add(1, 2) == 3，更简洁。
+
+跑测试：python -m pytest 或 python -m unittest。
+
+测试三原则：每个测试只验证一件事、测试之间互不依赖、覆盖边界情况。
+
+Python 环境管理
+
+虚拟环境：python -m venv .venv，激活后 pip install 只影响这个环境。
+
+导出依赖：pip freeze > requirements.txt；安装：pip install -r requirements.txt。
+
+国内加速：pip install -i https://pypi.tuna.tsinghua.edu.cn/simple 包名。
+
+Python 常见坑 18 条
+
+1 可变默认参数 def f(a=[]) 会在多次调用间共享同一个列表。
+2 列表赋值是引用，b = a 改 b 会改 a，要复制用 a.copy() 或 a[:]。
+3 浅拷贝嵌套列表，内层仍共享，需要 copy.deepcopy。
+4 用 is 比较字符串和数字，应该用 ==。
+5 循环里删除列表元素会跳过元素，应该倒序或用新列表。
+6 字典遍历时修改字典会报 RuntimeError。
+7 文件不 close 会泄漏句柄，用 with。
+8 浮点数 0.1 + 0.2 != 0.3。
+9 中文路径或编码问题，读写都显式指定 encoding="utf-8"。
+10 整数除法 // 和浮点除法 / 结果不同。
+11 range 是左闭右开，range(5) 是 0 到 4。
+12 字符串不可变，s[0] = "a" 会报错。
+13 全局变量在函数里赋值需要 global 声明。
+14 异常捕获太宽，裸 except 会吞掉 KeyboardInterrupt。
+15 递归默认深度约 1000，深了要改 sys.setrecursionlimit 或改迭代。
+16 类属性是共享的，实例属性才有各自的副本。
+17 sort 和 sorted 的区别：前者原地排序返回 None。
+18 生成器只能用一次，用完就空了。
+
+C 与 Python 互相对照
+
+数组：C 的 int a[10] 固定长度；Python 的 list 动态长度。
+
+字符串：C 是 char 数组以 \0 结尾且不可变长；Python 的 str 不可变。
+
+内存：C 手动 malloc/free；Python 自动垃圾回收。
+
+类型：C 静态强类型；Python 动态类型。
+
+速度：C 快一到两个数量级；Python 开发快。
+
+选择：性能敏感、贴近硬件、嵌入式用 C；脚本、数据处理、原型、AI 用 Python。
+
+性能对比示例：同样做一亿次加法，C 大约 0.1 秒，Python 大约 5 到 10 秒。
+
+混合编程：用 ctypes 调 C 动态库；用 Cython 把 Python 编译成 C；用 cffi；把热点函数用 C 写，其余用 Python 编排。

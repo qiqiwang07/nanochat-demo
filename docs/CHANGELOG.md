@@ -87,3 +87,18 @@
 - 答案用 strong.answer 高亮（黄底圆角）
 - 流式输出改为每 500ms 渲染一次，长回答能看到格式逐步成形
 - 用 Node 抽取渲染函数做了 10 项断言测试，全部通过（	ools/test_render.js）
+
+## 2026-11-08（C / Python 加强）
+
+### 新增：C 与 Python 深度手册（14.7 KB）
+- **C 部分**：四步构建流程与 gcc 选项、类型与溢出、无符号陷阱、内存五分区、
+  指针进阶（指针数组/数组指针/函数指针/二级指针）、字符串函数的标准实现
+  （strlen/strcpy/strcmp/memcpy）、结构体对齐、预处理器与头文件保护、
+  链表完整操作、哈希表（djb2 + 拉链法）、文件复制、errno 错误处理、
+  **常见坑 20 条**、gdb/valgrind/sanitizer 调试方法
+- **Python 部分**：推导式与生成器、闭包与装饰器、上下文管理器、类型注解、dataclass、
+  常用技巧（enumerate/zip/解包/合并字典）、pathlib、正则实战、并发三方案
+  （threading/multiprocessing/asyncio）、类进阶（魔术方法/property/classmethod）、
+  性能优化、4 个实用脚本模板、测试、虚拟环境、**常见坑 18 条**
+- **C 与 Python 对照**：数组/字符串/内存/类型/速度对比，混合编程方案
+- 知识库 9.30 MB / 18641 段
