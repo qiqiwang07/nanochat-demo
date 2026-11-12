@@ -1,0 +1,397 @@
+编程基础与写代码方法
+
+写代码的标准流程：明确输入输出、想清边界情况、选合适的数据结构、写出可运行版本、再优化。
+
+明确输入输出：函数收什么参数、返回什么、参数为空或非法时怎么办。
+
+边界情况是新手最容易漏的：空数组、只有一个元素、全是相同元素、数值溢出、除零、None、越界、重复元素、负数、超长输入。
+
+好的代码有三条标准：能跑对（正确性）、看得懂（可读性）、改得动（可维护性）。可读性靠三件事：变量名说人话、函数只做一件事、注释解释为什么而不是做什么。
+
+调试方法：先看报错信息的最后一行（那是真正的错误类型），再看倒数第二行指向的文件和行号；用 print 打印中间值；把大问题拆成小问题逐个验证；二分法注释掉一半代码定位。
+
+Python 基础
+
+变量与类型：int、float、str、bool、list、tuple、dict、set。
+
+字符串常用操作：split、join、strip、replace、find、startswith、endswith、format、f-string。
+
+列表常用操作：append、extend、insert、pop、remove、index、sort、reverse、切片 [start:end:step]、列表推导式。
+
+字典常用操作：get、keys、values、items、setdefault、pop、字典推导式。
+
+集合用于去重和判断存在性，查找是 O(1)。
+
+函数定义：def 函数名(参数): 函数体 return 返回值。支持默认参数、关键字参数、*args、**kwargs。
+
+类与对象：class 类名: __init__ 构造方法，self 表示实例本身。
+
+异常处理：try / except / else / finally，except 要捕获具体异常类型，不要裸 except。
+
+文件读写：with open(路径, 'r', encoding='utf-8') as f: 内容 = f.read()。
+
+模块与包：import 模块；from 模块 import 函数；if __name__ == '__main__' 保护入口。
+
+Python 常用标准库
+
+os：os.path.join 拼路径、os.listdir 列目录、os.makedirs 建目录、os.path.exists 判断存在。
+
+sys：sys.argv 命令行参数、sys.exit 退出、sys.path 模块搜索路径。
+
+json：json.dumps 序列化、json.loads 反序列化、ensure_ascii=False 保留中文、indent=2 美化输出。
+
+re：re.search 查找、re.findall 找全部、re.sub 替换、re.match 从头匹配。
+
+collections：Counter 计数、defaultdict 带默认值的字典、deque 双端队列、OrderedDict 有序字典。
+
+itertools：product 笛卡尔积、permutations 排列、combinations 组合、chain 串联。
+
+datetime：datetime.now() 当前时间、strftime 格式化、strptime 解析。
+
+pathlib：Path 对象，比 os.path 更现代，支持 / 拼接。
+
+Python 代码示例：快速排序
+
+def quick_sort(arr):
+    """快速排序：平均 O(n log n)，最坏 O(n^2)。"""
+    if len(arr) <= 1:            # 递归出口：空或单元素已有序
+        return arr
+    pivot = arr[len(arr) // 2]   # 取中间元素做基准，避免有序数组退化
+    left = [x for x in arr if x < pivot]    # 小于基准
+    mid = [x for x in arr if x == pivot]    # 等于基准
+    right = [x for x in arr if x > pivot]   # 大于基准
+    return quick_sort(left) + mid + quick_sort(right)
+
+Python 代码示例：二分查找
+
+def binary_search(arr, target):
+    """在有序数组中查找目标，返回下标，找不到返回 -1。时间复杂度 O(log n)。"""
+    lo, hi = 0, len(arr) - 1
+    while lo <= hi:
+        mid = (lo + hi) // 2
+        if arr[mid] == target:
+            return mid
+        elif arr[mid] < target:
+            lo = mid + 1
+        else:
+            hi = mid - 1
+    return -1
+
+Python 代码示例：链表反转
+
+class ListNode:
+    def __init__(self, val=0, nxt=None):
+        self.val = val
+        self.next = nxt
+
+def reverse_list(head):
+    """迭代反转单链表，时间 O(n)，空间 O(1)。"""
+    prev = None
+    cur = head
+    while cur:
+        nxt = cur.next   # 先存下一个节点，否则改指针后就丢了
+        cur.next = prev
+        prev = cur
+        cur = nxt
+    return prev
+
+Python 代码示例：二叉树遍历
+
+def inorder(root):
+    """中序遍历：左-根-右，结果对二叉搜索树是升序。"""
+    res, stack = [], []
+    cur = root
+    while cur or stack:
+        while cur:               # 一路向左压栈
+            stack.append(cur)
+            cur = cur.left
+        cur = stack.pop()        # 弹出最左节点
+        res.append(cur.val)
+        cur = cur.right          # 转向右子树
+    return res
+
+def level_order(root):
+    """层序遍历（BFS），按层返回。"""
+    if not root:
+        return []
+    from collections import deque
+    q, out = deque([root]), []
+    while q:
+        level = []
+        for _ in range(len(q)):   # 当前层的节点数固定，这样能分层
+            node = q.popleft()
+            level.append(node.val)
+            if node.left:
+                q.append(node.left)
+            if node.right:
+                q.append(node.right)
+        out.append(level)
+    return out
+
+Python 代码示例：动态规划（01 背包）
+
+def knapsack(weights, values, capacity):
+    """01 背包：每个物品只能选一次。时间 O(n*C)，空间 O(C)。"""
+    dp = [0] * (capacity + 1)          # dp[c] 表示容量 c 时的最大价值
+    for i in range(len(weights)):
+        for c in range(capacity, weights[i] - 1, -1):   # 必须倒序，否则同一物品会被重复选
+            dp[c] = max(dp[c], dp[c - weights[i]] + values[i])
+    return dp[capacity]
+
+Python 代码示例：并查集
+
+class UnionFind:
+    def __init__(self, n):
+        self.parent = list(range(n))
+        self.rank = [0] * n
+
+    def find(self, x):
+        """路径压缩：把沿途节点直接挂到根上，摊还近似 O(1)。"""
+        while self.parent[x] != x:
+            self.parent[x] = self.parent[self.parent[x]]
+            x = self.parent[x]
+        return x
+
+    def union(self, a, b):
+        ra, rb = self.find(a), self.find(b)
+        if ra == rb:
+            return False
+        if self.rank[ra] < self.rank[rb]:
+            ra, rb = rb, ra
+        self.parent[rb] = ra
+        if self.rank[ra] == self.rank[rb]:
+            self.rank[ra] += 1
+        return True
+
+Python 代码示例：哈希表计数与众数
+
+from collections import Counter
+
+def most_common_item(items):
+    """返回出现次数最多的元素。时间 O(n)。"""
+    if not items:
+        return None
+    return Counter(items).most_common(1)[0][0]
+
+Python 代码示例：字符串处理
+
+def is_palindrome(s):
+    """判断回文，忽略大小写和非字母数字字符。"""
+    cleaned = [ch.lower() for ch in s if ch.isalnum()]
+    return cleaned == cleaned[::-1]
+
+def count_words(text):
+    """统计词频，返回按次数降序的列表。"""
+    from collections import Counter
+    words = text.split()
+    return Counter(words).most_common()
+
+Python 代码示例：读写文件
+
+import json
+
+def read_json(path):
+    """读 JSON 文件，出错返回空字典而不是崩溃。"""
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+def write_json(path, data):
+    """写 JSON，ensure_ascii=False 保证中文不被转义。"""
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+Python 代码示例：类与继承
+
+class Animal:
+    def __init__(self, name):
+        self.name = name
+
+    def speak(self):
+        raise NotImplementedError   # 子类必须实现
+
+class Dog(Animal):
+    def speak(self):
+        return f"{self.name} 说：汪汪"
+
+C 语言要点
+
+指针：指针保存地址，*p 取地址指向的值，&x 取变量地址。指针是 C 的灵魂也是万恶之源。
+
+内存管理：malloc 申请、free 释放，成对出现；free 后不能再用；不要重复 free。
+
+数组与指针：数组名退化为首元素地址；a[i] 等价于 *(a+i)。
+
+结构体：struct 定义、typedef 起别名、. 访问成员、-> 通过指针访问。
+
+字符串：C 里字符串是以 \0 结尾的 char 数组，用 strcpy、strlen、strcmp、strcat 操作。
+
+文件操作：fopen、fread、fwrite、fclose、fseek、ftell。
+
+常见坑：数组越界、忘记初始化为 0、free 后继续用、返回局部数组地址、忘记 \0、整数溢出、scanf 不检查返回值。
+
+位运算：& 与、| 或、^ 异或、~ 取反、<< 左移、>> 右移。用 x & (x-1) 消掉最低位的 1。
+
+C 代码示例：冒泡排序
+
+void bubble_sort(int *a, int n) {
+    for (int i = 0; i < n - 1; i++) {          /* 共 n-1 轮 */
+        int swapped = 0;                        /* 本轮是否发生交换 */
+        for (int j = 0; j < n - 1 - i; j++) {   /* 每轮把最大值送到末尾 */
+            if (a[j] > a[j + 1]) {
+                int t = a[j]; a[j] = a[j + 1]; a[j + 1] = t;
+                swapped = 1;
+            }
+        }
+        if (!swapped) break;                    /* 已经有序，提前退出 */
+    }
+}
+
+C 代码示例：动态数组
+
+#include <stdlib.h>
+
+typedef struct {
+    int *data;      /* 数据缓冲区 */
+    int len;        /* 已用长度 */
+    int cap;        /* 容量 */
+} Vec;
+
+void vec_init(Vec *v) {
+    v->cap = 8;
+    v->len = 0;
+    v->data = (int *)malloc(sizeof(int) * v->cap);
+}
+
+void vec_push(Vec *v, int x) {
+    if (v->len == v->cap) {                  /* 满了就翻倍扩容 */
+        v->cap *= 2;
+        v->data = (int *)realloc(v->data, sizeof(int) * v->cap);
+    }
+    v->data[v->len++] = x;
+}
+
+void vec_free(Vec *v) {
+    free(v->data);                           /* 成对释放，避免内存泄漏 */
+    v->data = NULL;
+    v->len = v->cap = 0;
+}
+
+JavaScript 要点
+
+变量：let 声明可变、const 声明不可变，避免 var。
+
+函数：function 声明、箭头函数 (a) => a * 2、默认参数、剩余参数 ...args。
+
+数组方法：map 映射、filter 过滤、reduce 归约、find 查找、some 任一、every 全部、sort 排序。
+
+对象与解构：const { a, b } = obj；展开运算符 {...obj} 浅拷贝。
+
+异步：async/await、Promise、fetch 请求。
+
+模板字符串：`你好，${name}`。
+
+JS 代码示例：数组去重与排序
+
+function uniqueSorted(arr) {
+  // Set 天然去重；数字排序必须给比较函数，否则按字符串比较
+  return [...new Set(arr)].sort((a, b) => a - b);
+}
+
+SQL 基础
+
+查询：SELECT 列 FROM 表 WHERE 条件 ORDER BY 列 DESC LIMIT 10。
+
+聚合：COUNT、SUM、AVG、MAX、MIN，配合 GROUP BY 分组、HAVING 过滤分组。
+
+连接：INNER JOIN 交集、LEFT JOIN 保留左表、RIGHT JOIN 保留右表。
+
+子查询与索引：WHERE 里套 SELECT；给经常查询和排序的列建索引能大幅提速。
+
+数据结构与算法
+
+时间复杂度从快到慢：O(1)、O(log n)、O(n)、O(n log n)、O(n^2)、O(2^n)、O(n!)。
+
+空间复杂度看额外用了多少内存。
+
+常见数据结构及适用场景：数组随机访问快、链表插入删除快、栈后进先出、队列先进先出、哈希表查找快、堆取最值快、树有序且可范围查询、图处理关系网络。
+
+排序算法：冒泡 O(n^2)、选择 O(n^2)、插入 O(n^2)、归并 O(n log n) 稳定、快速 O(n log n) 平均、堆排序 O(n log n)、计数排序 O(n+k)。
+
+查找算法：顺序查找 O(n)、二分查找 O(log n) 要求有序、哈希查找 O(1)。
+
+递归三要素：递归出口、递推关系、向出口收敛。
+
+动态规划三步：定义状态、写转移方程、确定初始条件与遍历顺序。
+
+贪心适用条件：局部最优能推出全局最优。
+
+回溯模板：选择 → 递归 → 撤销选择。
+
+图算法：BFS 求最短路径（无权图）、DFS 求连通分量、Dijkstra 求带权最短路、拓扑排序处理依赖关系。
+
+常见算法题思路
+
+两数之和：用哈希表存已见过的数，边遍历边查目标差值，O(n)。
+
+最长无重复子串：滑动窗口 + 哈希表记录上次出现位置。
+
+合并两个有序链表：双指针比较，谁小接谁。
+
+有效括号：栈，左括号入栈，右括号与栈顶匹配。
+
+爬楼梯：斐波那契，dp[i] = dp[i-1] + dp[i-2]。
+
+最大子数组和：Kadane 算法，cur = max(x, cur + x)。
+
+最长公共子序列：二维 dp，相等取左上加一，不等取上或左的较大值。
+
+二进制中 1 的个数：n & (n-1) 每次消掉一个 1，数次数。
+
+代码规范
+
+命名：变量用小驼峰或下划线、常量全大写、类名大驼峰；名字要有意义，避免 a、b、tmp、data1。
+
+函数：不超过 50 行，只做一件事，参数不超过 4 个。
+
+注释：解释为什么这么做、边界条件、复杂逻辑；不要注释"i 自增"这种废话。
+
+错误处理：不要静默吞掉异常，至少记录日志；对外接口要校验参数。
+
+Git 常用命令：git init 初始化、git add 暂存、git commit -m 提交、git push 推送、git pull 拉取、git status 看状态、git log 看历史、git diff 看改动、git checkout -b 建分支。
+
+常见报错与解决
+
+IndentationError：Python 缩进不一致，检查是否混用空格和 Tab。
+
+NameError：名字没定义，检查拼写或是否忘了 import。
+
+TypeError：类型不对，比如字符串加数字，需要 int() 转换。
+
+IndexError：下标越界，检查长度是否够。
+
+KeyError：字典没有这个键，用 dict.get(key, 默认值) 避免。
+
+AttributeError：对象没有这个属性，检查是不是 None。
+
+ModuleNotFoundError：模块没装，pip install 模块名。
+
+SyntaxError：语法错误，看报错的行号和箭头指向。
+
+RecursionError：递归太深，检查递归出口是否可达。
+
+Segmentation fault：C 里访问了非法内存，检查空指针和越界。
+
+代码审查要点
+
+正确性：边界条件、异常路径、循环终止。
+
+安全性：用户输入是否校验、有没有拼接 SQL、路径是否可能穿越。
+
+性能：有没有在循环里做重复计算、有没有 N+1 查询。
+
+可读性：命名、函数长度、重复代码、魔法数字。
+
+可测试性：能否单独测每个函数、依赖是否可替换。

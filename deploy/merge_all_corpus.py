@@ -9,6 +9,7 @@ PARTS = [
     ('literature_knowledge.txt', '中国文学常识'),
     ('literature.txt', '中国古典诗文'),
     ('writing_corpus.txt', '作文方法与好词好句'),
+    ('coding_corpus.txt', '编程知识与代码示例'),
 ]
 
 
