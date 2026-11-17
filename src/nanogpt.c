@@ -237,7 +237,7 @@ static void init_params(void) {
         float scale = strcmp(q->name, "lm_head") == 0 ? 0.001f : 0.02f;  /* 输出层用小方差，减少初始 logits 的噪声 */
         for (int j = 0; j < q->n; j++) q->p[j] = scale * nrand();        /* 其余权重用正态分布 */
     }
-    printf("参数张量 %d 个，参数总量 %ld (%.3fM)\n", nparams, total, total / 1e6);  /* 报告规模，便于判断是否超出内存 */
+    fprintf(stderr, "参数张量 %d 个，参数总量 %ld (%.3fM)\n", nparams, total, total / 1e6);  /* 报告规模，便于判断是否超出内存 */
 }
 
 /* ------------------------------ RoPE 旋转位置编码 -----------------------
@@ -728,7 +728,7 @@ static int load_corpus(const char *path) {
         if (ncorpus - ntrain < T + 2) ntrain = ncorpus - (T + 2);  /* 验证集至少留一个上下文，否则采样越界 */
         if (ntrain < 1) ntrain = 1;                /* 极小语料兜底 */
         nval = ncorpus - ntrain;                   /* 后 2% 做验证，用来判断是否过拟合 */
-        printf("语料 %ld 个字符 | 训练 %ld | 验证 %ld | 字表 %d 个字符\n", ncorpus, ntrain, nval, k);
+        fprintf(stderr, "语料 %ld 个字符 | 训练 %ld | 验证 %ld | 字表 %d 个字符\n", ncorpus, ntrain, nval, k);
         return 0;                                  /* 成功 */
     }
 #else
@@ -753,7 +753,7 @@ static int load_corpus(const char *path) {
         if (ncorpus - ntrain < T + 2) ntrain = ncorpus - (T + 2);  /* 同上：验证集不能短于上下文 */
         if (ntrain < 1) ntrain = 1;                /* 兜底 */
         nval   = ncorpus - ntrain;
-        printf("语料 %ld 字节 | 训练 %ld | 验证 %ld | 字符表 %d 种\n", ncorpus, ntrain, nval, VOCAB);
+        fprintf(stderr, "语料 %ld 字节 | 训练 %ld | 验证 %ld | 字符表 %d 种\n", ncorpus, ntrain, nval, VOCAB);
         return 0;                                  /* 成功 */
     }
 #endif
@@ -821,6 +821,50 @@ static void generate(const char *prompt, int nchars) {
     }
     printf("\n--- 结束 ---\n");                    /* 生成结束 */
     BT = B * T; B = savedB;                        /* 恢复全局状态，避免影响后续计算 */
+}
+
+/* ------------------------------ 纯文本生成（给网页服务用）--------------------------
+ * 与 generate() 的区别：不打印任何表头、提示词回显、结束语，
+ * 只把模型新生成的字符逐个写到 stdout 并立即 flush，方便上层流式转发。 */
+static void generate_raw(const char *prompt, int nchars) {
+    static int ctx[8192];                          /* 上下文缓冲 */
+    int n = str_to_ids(prompt, ctx, 8000);         /* 提示词编码 */
+    if (n == 0) { ctx[n++] = str_to_ids("\n", ctx + n, 1); }  /* 空提示兜底 */
+    int savedB = B;                                /* 保存 batch 设置 */
+    B = 1;                                         /* 单序列生成 */
+    for (int s = 0; s < nchars; s++) {             /* 逐字符生成 */
+        int len = n < T ? n : T;                   /* 上下文不超过窗口 */
+        BT = len;                                  /* 本次前向长度 */
+        for (int t = 0; t < len; t++) { xs[t] = ctx[n - len + t]; ys[t] = 0; }  /* 填输入 */
+        forward();                                 /* 前向 */
+        float *lg = h_logits + (size_t)(len - 1) * VOCAB;  /* 最后一个位置的分布 */
+        float temp = 0.8f, sum = 0.0f, probs[VOCAB];  /* 温度与概率表 */
+        float kth = -1e30f;                        /* top-40 阈值 */
+        for (int v = 0; v < VOCAB; v++) if (lg[v] > kth) kth = lg[v];  /* 取最大 */
+        for (int r = 0; r < 39; r++) {             /* 找到第 40 大 */
+            float best = -1e30f;
+            for (int v = 0; v < VOCAB; v++) if (lg[v] < kth && lg[v] > best) best = lg[v];
+            kth = best;
+        }
+        float mxl = -1e30f;                        /* 用于数值稳定的最大值 */
+        for (int v = 0; v < VOCAB; v++) if (lg[v] > mxl) mxl = lg[v];
+        for (int v = 0; v < VOCAB; v++) {          /* 计算截断后的概率 */
+            if (lg[v] < kth) { probs[v] = 0.0f; continue; }
+            float e = (lg[v] - mxl) / temp;        /* 减最大值再除温度 */
+            if (e > 60.0f) e = 60.0f;              /* 防 exp 溢出 */
+            probs[v] = expf(e);
+            sum += probs[v];
+        }
+        float r = frand() * sum, acc = 0.0f;       /* 轮盘赌落点 */
+        int pick = VOCAB - 1;                      /* 兜底 */
+        for (int v = 0; v < VOCAB; v++) { acc += probs[v]; if (r <= acc) { pick = v; break; } }
+        ctx[n++] = pick;                           /* 接进上下文 */
+        char ob[8];                                /* 输出的 UTF-8 字节 */
+        int k = id_to_out(pick, ob);               /* 编码 */
+        fwrite(ob, 1, (size_t)k, stdout);          /* 只写正文，不加任何装饰 */
+        fflush(stdout);                            /* 立即刷出，上层才能流式收到 */
+    }
+    B = savedB; BT = B * T;                        /* 恢复现场 */
 }
 
 /* ------------------------------ 梯度检查 --------------------------------
@@ -914,6 +958,9 @@ static int gradcheck(void) {
     return bad ? 1 : 0;                            /* 返回非 0 表示有错，主程序据此设置退出码 */
 }
 
+static const char *g_ckpt_path = NULL;   /* 训练中途定期保存的路径 */
+static int save_weights(const char *path);  /* 前向声明：train 里要先用到 */
+
 /* ------------------------------ 训练 ------------------------------------ */
 static void train(int steps) {
     /* 主训练循环：采样 → 前向 → 损失 → 反向 → AdamW 更新 */
@@ -943,10 +990,11 @@ static void train(int steps) {
                    step, steps, loss, lr, secs, secs * 1000.0 / step);  /* 参数与速率 */
             fflush(stdout);                        /* 立即刷出，方便边训边看 */
         }
-        if (step % 500 == 0) {                     /* 每 500 步验证一次 */
+        if (step % 500 == 0 && g_ckpt_path) {      /* 定期存检查点，避免训练中断白跑 */
             float vl = eval_loss(10);              /* 用 10 批估验证损失 */
             printf("             验证 loss %.4f%s\n", vl, vl < best_val ? "  (新低)" : "");  /* 提示是否改善 */
             if (vl < best_val) best_val = vl;      /* 更新最好记录 */
+            save_weights(g_ckpt_path);             /* 存一份当前权重，可随时中断取用 */
         }
     }
     printf("\n训练完成，用时 %.1f 秒，最终验证 loss %.4f\n",  /* 收尾报告 */
@@ -1039,7 +1087,7 @@ static int load_weights(const char *path) {
         if (fread(params[i].v, sizeof(float), n, f) != (size_t)n) { fclose(f); return -1; }  /* 二阶动量 */
     }
     fclose(f);                                     /* 读取完成 */
-    printf("已加载权重: %s\n", path);              /* 成功日志 */
+    fprintf(stderr, "已加载权重: %s\n", path);              /* 成功日志 */
     return 0;                                      /* 成功 */
 }
 
@@ -1479,6 +1527,20 @@ int main(int argc, char **argv) {
         return 0;
     }
 
+    if (strcmp(mode, "raw") == 0) {
+        /* raw <corpus> <weights.bin> "问题" [生成长度] —— 只输出正文，供网页服务调用 */
+        if (argc < 5) {                            /* 需要权重和问题 */
+            fprintf(stderr, "用法: nanogpt raw <corpus.txt> <权重.bin> \"问题\" [长度]\n");
+            return 1;
+        }
+        if (load_weights(argv[3]) != 0) return 1;  /* 加载权重 */
+        char *q = to_utf8(argv[4]);                /* 命令行可能是 GBK，转 UTF-8 */
+        int n = argc > 5 ? atoi(argv[5]) : 260;    /* 默认生成 260 个字符 */
+        generate_raw(q, n);                        /* 只输出正文 */
+        free(q);                                   /* 释放转换结果 */
+        return 0;
+    }
+
     if (strcmp(mode, "sample") == 0) {
         /* sample <corpus> [weights.bin] ["prompt"] */
         const char *wpath = NULL, *prompt = "The ";  /* 默认参数 */
@@ -1507,8 +1569,10 @@ int main(int argc, char **argv) {
         return 0;
     }
 
-    /* train <corpus> [steps] [out.bin] */
+    /* train <corpus> [steps] [out.bin] [batch] */
     int steps = argc > 3 ? atoi(argv[3]) : 2000;   /* 默认 2000 步 */
+    if (argc > 5) { B = atoi(argv[5]); if (B < 1) B = 1; BT = B * T; }  /* 可选 batch，越小越快 */
+    if (argc > 4) g_ckpt_path = argv[4];           /* 有输出路径就每 500 步存一次 */
     train(steps);                                  /* 训练 */
     generate("\nThe ", 400);                       /* 生成样例，直观检查训练效果 */
     if (argc > 4) save_weights(argv[4]);           /* 给了路径就保存权重 */

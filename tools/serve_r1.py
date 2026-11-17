@@ -17,6 +17,8 @@ import argparse  # 解析命令行参数，端口和后端地址都可配置
 import json  # 读写 JSON（请求体、响应体、会话文件）
 import os  # 路径拼接、目录创建、文件存在性检查
 import re  # 正则清洗回答里的出处措辞
+import subprocess  # 调用自研的 nanogpt 可执行文件
+import codecs  # 增量解码：C 模型逐字节输出，需要拼成完整 UTF-8 字符
 import threading  # 线程锁，保护 sessions 字典的并发写
 import time  # 计时（统计生成耗时）与生成会话 ID
 import urllib.request  # 向 llama-server 发 HTTP 请求（标准库，无需第三方依赖）
@@ -30,6 +32,11 @@ CORPUS = os.path.join(HERE, "corpus.txt")  # 教材语料文件，缺失时检�
 OLYMPIAD = os.path.join(HERE, "olympiad_index.json")  # 奥数题库索引，含题目与标准解答
 
 LLAMA = "http://127.0.0.1:8080/v1/chat/completions"  # 默认后端地址，可通过 --llama 覆盖
+BACKEND = "llama"  # 后端类型：llama（外部模型）或 nanogpt（自研 C 模型）
+NP_BIN = os.path.join(HERE, "nanogpt")  # 自研模型可执行文件路径
+NP_CORPUS = CORPUS  # 自研模型用的语料（决定字符表）
+NP_WEIGHTS = os.path.join(HERE, "selfmade.bin")  # 自研模型权重
+NP_LEN = 260  # 自研模型单次生成多少个字符
 MAX_NEW = 800  # 默认单次最多生成多少 token，可通过 --max-new 覆盖
 
 sessions = {}  # 内存中的会话表：{会话ID: {"title": 标题, "messages": [{"role","content"}]}}
@@ -241,6 +248,34 @@ def stream_llama(messages, usage_out: dict, max_tokens=None):
                 yield delta  # 交给调用方推给浏览器
     dt = time.time() - t0  # 计算总耗时
     print(f"[llama] 输出 {usage_out.get('out', 0)} token / {dt:.1f}s", flush=True)  # 记录到日志，便于对比性能
+
+
+def stream_nanogpt(prompt: str, usage_out: dict):
+    """调用自研 C 模型（nanogpt raw 模式），把输出逐字符转成文本增量。
+
+    为什么用子进程：C 模型是命令行程序，没有 HTTP 接口；
+    它每次生成一个字符就 flush，所以这里能拿到真正的流式输出。
+    """
+    cmd = [NP_BIN, "raw", NP_CORPUS, NP_WEIGHTS, prompt, str(NP_LEN)]  # 命令：只输出正文
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0)  # 无缓冲，立刻能读
+    dec = codecs.getincrementaldecoder("utf-8")("ignore")  # 增量解码器，处理被切断的多字节字符
+    n_out = 0  # 统计生成的字符数，当作 token 数展示
+    try:
+        while True:  # 逐字节读取
+            b = proc.stdout.read(1)  # 一次一个字节，保证不粘包
+            if not b:  # 进程结束
+                break
+            s = dec.decode(b)  # 解码（可能返回空串，表示字符还没凑齐）
+            if s:
+                n_out += len(s)  # 计数
+                yield s  # 交给上层推给浏览器
+    finally:
+        try:
+            proc.wait(timeout=5)  # 等进程退出，避免僵尸进程
+        except Exception:
+            proc.kill()  # 超时就强杀
+    usage_out["in"] = len(prompt)  # 粗略统计输入长度
+    usage_out["out"] = n_out  # 输出字符数
 
 
 def load_sessions() -> None:
@@ -475,9 +510,15 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(b"data: " + json.dumps(obj, ensure_ascii=False).encode() + b"\n\n")  # SSE 帧格式固定
                 self.wfile.flush()  # 强制刷出，否则会攒在缓冲区
             try:  # 后端可能报错（模型崩溃、超时）
-                for delta in stream_llama(msgs, usage, req_max):  # 逐个增量
-                    acc.append(delta)  # 累积
-                    emit({"delta": delta})  # 立刻推给浏览器
+                if BACKEND == "nanogpt":  # 自研 C 模型：直接续写文本
+                    prompt = text + "\n"  # 用问题本身当提示，让模型接着往下写
+                    for delta in stream_nanogpt(prompt, usage):  # 逐字符增量
+                        acc.append(delta)  # 累积
+                        emit({"delta": delta})  # 立刻推给浏览器
+                else:  # 外部模型
+                    for delta in stream_llama(msgs, usage, req_max):  # 逐个增量
+                        acc.append(delta)  # 累积
+                        emit({"delta": delta})  # 立刻推给浏览器
             except Exception as e:  # 记录错误到对话里，用户能看到原因
                 emit({"delta": "\n[后端出错：%s]" % e})  # 以文本形式回传
             ans = strip_refs("".join(acc)) or "（模型没有给出答案）"  # 清洗出处措辞并兜底
@@ -496,7 +537,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def main() -> int:
     """程序入口：解析参数、加载索引、启动 HTTP 服务。"""
-    global LLAMA, MAX_NEW  # 需要覆盖模块级默认值
+    global LLAMA, MAX_NEW, BACKEND, NP_BIN, NP_WEIGHTS, NP_LEN  # 需要在函数内覆盖这些模块级配置
     ap = argparse.ArgumentParser()  # 创建参数解析器
     ap.add_argument("--port", type=int, default=8091)  # 监听端口
     ap.add_argument("--bind", default="0.0.0.0", help="监听地址")  # 0.0.0.0 允许外部访问，127.0.0.1 只允许本机
@@ -504,9 +545,17 @@ def main() -> int:
     ap.add_argument("--max-new", type=int, default=800)  # 默认生成长度
     ap.add_argument("--corpus", default=CORPUS)  # 教材语料路径
     ap.add_argument("--no-rag", action="store_true")  # 开关：完全关闭检索，用于对比测试
+    ap.add_argument("--backend", default="llama", choices=["llama", "nanogpt"])  # 选择后端
+    ap.add_argument("--np-bin", default=NP_BIN)  # 自研模型可执行文件
+    ap.add_argument("--np-weights", default=NP_WEIGHTS)  # 自研模型权重
+    ap.add_argument("--np-len", type=int, default=NP_LEN)  # 自研模型生成长度
     args = ap.parse_args()  # 解析命令行
     LLAMA = args.llama  # 应用后端地址
     MAX_NEW = args.max_new  # 应用生成长度
+    BACKEND = args.backend  # 后端类型
+    NP_BIN = args.np_bin  # 自研模型路径
+    NP_WEIGHTS = args.np_weights  # 权重路径
+    NP_LEN = args.np_len  # 生成长度
     if not args.no_rag:  # 默认开启检索
         build_index(args.corpus)  # 建教材索引
         load_olympiad(OLYMPIAD)  # 加载奥数题库

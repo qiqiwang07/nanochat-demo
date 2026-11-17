@@ -134,3 +134,29 @@ anogpt check 的历史失败属于工具问题，不能作为正确性判据
 ### 未完成
 - **MLA（多头潜在注意力）**：需要把 Q/K/V 从交错布局（3×NEMBD/行）改为三块独立缓冲，
   并新增 W_dkv/W_uk/W_uv 三组投影及其反向，改动面较大，留作下一步
+
+## 2026-11-09（切换为自研模型）
+
+### 新增：nanogpt 的 raw 模式
+- 
+anogpt raw <corpus> <weights> "问题" [长度]：只输正文，逐字符 flush，供网页流式转发
+- 信息性输出（语料统计、参数张量、加载权重）全部改到 stderr，不污染正文
+
+### 新增：serve_r1.py 支持双后端
+- --backend llama（默认）：外部模型
+- --backend nanogpt：调用自研 C 模型（子进程 + 增量 UTF-8 解码）
+- 切换脚本：ash ~/switch_backend.sh [nanogpt|llama]
+
+### 新增：nanogpt 训练改进
+- 定期保存检查点（每 500 步），训练中断不丢进度
+- 	rain 支持第 5 个参数指定 batch，用于提速
+
+### 部署
+- 服务器编译：gcc -O3 -march=native -fopenmp -DCHARLEVEL
+- 训练在本地进行（服务器 CPU 被他人占用，一步 6.2 秒；本地 0.9 秒）
+- 权重上传到 ~/airelay/app/selfmade.bin（16 MB）
+
+### 效果与限制
+- 端到端已打通：公网提问 → 自研模型生成 → 流式显示，首字 13 秒
+- **质量仍是乱码**：训练只到 700/3000 步，loss 约 2.4-3.2
+- 字符级 1.36M 模型要产出可读文本，估计需要 6 万步以上（约 15 小时）
