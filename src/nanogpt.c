@@ -149,9 +149,10 @@ static void mm_tn(const float *A, const float *Bm, float *C, int M, int K, int N
 }
 
 /* ------------------------------ 参数 ------------------------------------ */
-static Param *p_tok, *p_pos, *p_lm, *b_lm;   /* token 嵌入、位置嵌入、输出投影、输出偏置 */
+static Param *p_tok, *p_lm, *b_lm;           /* token 嵌入、输出投影、输出偏置（位置由 RoPE 负责） */
 static Param *Wqkv[NLAYER], *b_qkv[NLAYER], *Wo[NLAYER], *b_o[NLAYER];  /* 每层的注意力量重与偏置 */
-static Param *W1[NLAYER], *b_1[NLAYER], *W2[NLAYER], *b_2[NLAYER];      /* 每层前馈网络的两层 */
+static Param *W1[NLAYER], *b_1[NLAYER], *W2[NLAYER], *b_2[NLAYER];      /* 每层前馈网络：升维、降维 */
+static Param *W3[NLAYER], *b_3[NLAYER];                                 /* SwiGLU 的门控支路（DeepSeek/LLaMA 同款） */
 
 /* ------------------------------ 激活缓存（每层独立！）-------------------
  * 为什么每层单独存：反向传播要用到各层前向的中间结果，
@@ -160,10 +161,12 @@ static float *h_emb;                    /* 嵌入，即第 0 层输入 */
 static float *h_inv1[NLAYER], *h_ln1[NLAYER], *h_qkv[NLAYER], *h_att[NLAYER];  /* 归一化系数、归一化输出、QKV、注意力分数 */
 static float *h_ao[NLAYER], *h_x1[NLAYER], *h_inv2[NLAYER], *h_ln2[NLAYER];    /* 注意力输出、残差1、归一化2相关 */
 static float *h_pre[NLAYER], *h_act[NLAYER], *h_h2[NLAYER], *h_x2[NLAYER];     /* FFN 中间量、激活值、FFN 输出、残差2 */
+static float *h_gate[NLAYER];   /* SwiGLU 门控支路的输出（前向要留着算反向） */
 static float *h_invf, *h_xf, *h_logits;  /* 最终归一化系数、最终隐藏状态、输出 logits */
 
 static float *g_xin[NLAYER], *g_ln1[NLAYER], *g_qkv[NLAYER], *g_ao[NLAYER];    /* 反向传播中逐层的梯度缓冲 */
 static float *g_ln2[NLAYER], *g_pre[NLAYER], *g_act[NLAYER], *g_xout[NLAYER];  /* 同上，供 FFN 与残差使用 */
+static float *g_gate[NLAYER];   /* 门控支路的梯度 */
 static float *g_xf, *g_logits, *g_scratch;  /* 最终层梯度、logits 梯度、通用临时缓冲 */
 
 static int *xs, *ys;  /* 当前批次的输入 token 与目标 token（目标 = 输入右移一位） */
@@ -184,10 +187,12 @@ static void alloc_activations(void) {
         h_att[l]  = falloc(ATT);  h_ao[l]  = falloc(BTC);  h_x1[l]  = falloc(BTC);    /* 注意力与残差 */
         h_inv2[l] = falloc(BT);   h_ln2[l] = falloc(BTC);  h_pre[l] = falloc(BTMLP);  /* 第二个归一化与 FFN 输入 */
         h_act[l]  = falloc(BTMLP);h_h2[l]  = falloc(BTC);  h_x2[l]  = falloc(BTC);    /* FFN 激活与输出 */
+        h_gate[l] = falloc(BTMLP);                                                   /* 门控支路输出 */
 
         g_xin[l]  = falloc(BTC);  g_ln1[l] = falloc(BTC);  g_qkv[l] = falloc(BT3C);   /* 反向梯度：入口、归一化1、QKV */
         g_ao[l]   = falloc(BTC);  g_ln2[l] = falloc(BTC);  g_pre[l] = falloc(BTMLP);  /* 注意力输出、归一化2、FFN 输入 */
         g_act[l]  = falloc(BTMLP);g_xout[l]= falloc(BTC);                            /* FFN 激活、出口 */
+        g_gate[l] = falloc(BTMLP);                                                   /* 门控支路梯度 */
     }
     xs = (int *)calloc(BT, sizeof(int));     /* 输入 token 编号 */
     ys = (int *)calloc(BT, sizeof(int));     /* 目标 token 编号 */
@@ -207,7 +212,7 @@ static int is_bias(const char *name) {
 static void init_params(void) {
     /* 按 Transformer 的标准布局注册所有参数张量 */
     p_tok = add_param("tok_emb", VOCAB * NEMBD);   /* 词嵌入矩阵：词表 × 维度 */
-    p_pos = add_param("pos_emb", T * NEMBD);       /* 位置嵌入：学出来的绝对位置编码 */
+    /* 位置信息由 RoPE 提供，不再需要可学习的位置嵌入（省 T*NEMBD 个参数） */
     for (int l = 0; l < NLAYER; l++) {             /* 每层一套参数 */
         char buf[64];                              /* 参数名缓冲 */
         snprintf(buf, sizeof buf, "L%d.Wqkv", l); Wqkv[l] = add_param(buf, 3 * NEMBD * NEMBD);  /* Q/K/V 合并成一个矩阵，省一次乘法 */
@@ -218,6 +223,8 @@ static void init_params(void) {
         snprintf(buf, sizeof buf, "L%d.b1",   l); b_1[l]  = add_param(buf, MLP);                /* FFN 第一层偏置 */
         snprintf(buf, sizeof buf, "L%d.W2",   l); W2[l]   = add_param(buf, MLP * NEMBD);        /* FFN 第二层：降维 */
         snprintf(buf, sizeof buf, "L%d.b2",   l); b_2[l]  = add_param(buf, NEMBD);              /* FFN 第二层偏置 */
+        snprintf(buf, sizeof buf, "L%d.W3",   l); W3[l]   = add_param(buf, NEMBD * MLP);        /* SwiGLU 门控投影 */
+        snprintf(buf, sizeof buf, "L%d.b3",   l); b_3[l]  = add_param(buf, MLP);                /* 门控偏置 */
     }
     p_lm = add_param("lm_head", NEMBD * VOCAB);    /* 输出投影到词表 */
     b_lm = add_param("lm_bias", VOCAB);            /* 输出偏置 */
@@ -231,6 +238,39 @@ static void init_params(void) {
         for (int j = 0; j < q->n; j++) q->p[j] = scale * nrand();        /* 其余权重用正态分布 */
     }
     printf("参数张量 %d 个，参数总量 %ld (%.3fM)\n", nparams, total, total / 1e6);  /* 报告规模，便于判断是否超出内存 */
+}
+
+/* ------------------------------ RoPE 旋转位置编码 -----------------------
+ * 为什么需要：位置嵌入是"学出来的绝对位置"，换长度就不适配；
+ * RoPE 把位置编码成旋转角度，注意力分数只和相对距离有关，外推更好。 */
+#ifndef NO_ROPE
+#define USE_ROPE 1          /* 默认启用，可用 -DNO_ROPE 编译对比消融实验 */
+#else
+#define USE_ROPE 0
+#endif
+
+static inline void rope_apply(float *x, int pos, int hd) {
+    /* 对 hd 维向量做一次旋转：前一半 i 与后一半 i+hd/2 配对 */
+    for (int i = 0; i < hd / 2; i++) {
+        float freq = powf(10000.0f, -2.0f * (float)i / (float)hd);  /* 频率随维度指数衰减 */
+        float ang = (float)pos * freq;                              /* 当前维度上的旋转角 */
+        float c = cosf(ang), s = sinf(ang);                         /* 预计算三角函数 */
+        float a = x[i], b = x[i + hd / 2];                          /* 取出一对分量 */
+        x[i]           = a * c - b * s;                             /* 旋转后的前一半 */
+        x[i + hd / 2]   = a * s + b * c;                            /* 旋转后的后一半 */
+    }
+}
+
+static inline void rope_apply_bwd(float *g, int pos, int hd) {
+    /* 旋转矩阵的转置 = 反向旋转，用于把梯度转回未旋转的坐标系 */
+    for (int i = 0; i < hd / 2; i++) {
+        float freq = powf(10000.0f, -2.0f * (float)i / (float)hd);  /* 与前向完全一致的频率 */
+        float ang = (float)pos * freq;                              /* 同一个角度 */
+        float c = cosf(ang), s = sinf(ang);                         /* 同样的三角函数 */
+        float a = g[i], b = g[i + hd / 2];                          /* 旋转坐标系下的梯度 */
+        g[i]           = a * c + b * s;                             /* 转置旋转，符号相反 */
+        g[i + hd / 2]   = -a * s + b * c;                           /* 保持正交性 */
+    }
 }
 
 /* ------------------------------ RMSNorm --------------------------------
@@ -268,9 +308,9 @@ static void forward(void) {
     for (int i = 0; i < BT; i++) {                    /* 遍历批次里的每个位置 */
         int tok = xs[i], t = i % T;                   /* i%T 得到该位置在序列中的序号 */
         const float *te = p_tok->p + (size_t)tok * NEMBD;  /* 该 token 的词嵌入行 */
-        const float *pe = p_pos->p + (size_t)t * NEMBD;    /* 该位置的位置嵌入行 */
         float *o = h_emb + (size_t)i * NEMBD;         /* 输出行 */
-        for (int c = 0; c < NEMBD; c++) o[c] = te[c] + pe[c];  /* 直接相加，最经典的做法 */
+        for (int c = 0; c < NEMBD; c++) o[c] = te[c];  /* 只有词嵌入，位置信息交给 RoPE */
+        (void)t;                                      /* t 在这里不用了，加 (void) 避免告警 */
     }
 
     const float *x_in = h_emb;                        /* 逐层传递的隐藏状态，起始为嵌入 */
@@ -284,6 +324,18 @@ static void forward(void) {
             for (int c = 0; c < 3 * NEMBD; c++) q[c] += b_qkv[l]->p[c];  /* 偏置对 Q/K/V 三段共用同一组下标 */
         }
 
+#if USE_ROPE
+        for (int b = 0; b < B; b++) {                  /* 逐条序列 */
+            for (int t = 0; t < T; t++) {              /* 逐位置：位置 t 决定旋转角度 */
+                for (int h = 0; h < NHEAD; h++) {      /* 逐头独立旋转 */
+                    float *q = h_qkv[l] + ((size_t)(b * T + t) * 3 * NEMBD) + h * HD;  /* 该头的 Q */
+                    float *k = q + NEMBD;              /* 紧随其后的是 K */
+                    rope_apply(q, t, HD);              /* Q 施加旋转 */
+                    rope_apply(k, t, HD);              /* K 施加同样的旋转，点积才只依赖相对位置 */
+                }
+            }
+        }
+#endif
         float scale = 1.0f / sqrtf((float)HD);        /* 缩放因子 1/sqrt(d_k)，防止点积随维度爆炸 */
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)                  /* batch 与 head 两个维度都可并行 */
@@ -332,13 +384,20 @@ static void forward(void) {
         rmsnorm_fwd(h_x1[l], h_ln2[l], h_inv2[l], BT);              /* 第二个 RMSNorm */
         memset(h_pre[l], 0, (size_t)BT * MLP * sizeof(float));      /* 清零，mm_nn 是累加 */
         mm_nn(h_ln2[l], W1[l]->p, h_pre[l], BT, NEMBD, MLP);        /* 升维投影 */
-        for (int i = 0; i < BT; i++) {                              /* 加偏置并做 ReLU */
-            float *pr = h_pre[l] + (size_t)i * MLP;                 /* 升维后的值 */
+        memset(h_gate[l], 0, (size_t)BT * MLP * sizeof(float));     /* 门控支路清零 */
+        mm_nn(h_ln2[l], W3[l]->p, h_gate[l], BT, NEMBD, MLP);       /* SwiGLU 的门控投影 W3·x */
+        for (int i = 0; i < BT; i++) {                              /* 加偏置，算 SiLU(u) ⊙ g */
+            float *pr = h_pre[l] + (size_t)i * MLP;                 /* 内容支路 u */
+            float *ga = h_gate[l] + (size_t)i * MLP;                /* 门控支路 g */
             float *ac = h_act[l] + (size_t)i * MLP;                 /* 激活后的值 */
             for (int j = 0; j < MLP; j++) {
-                float v = pr[j] + b_1[l]->p[j];                     /* 先加偏置 */
-                pr[j] = v;                                          /* 反向传播要用加偏置后的值判断 ReLU 是否激活 */
-                ac[j] = v > 0.0f ? v : 0.0f;          /* ReLU */
+                float u = pr[j] + b_1[l]->p[j];                     /* 内容支路加偏置 */
+                float g = ga[j] + b_3[l]->p[j];                     /* 门控支路加偏置 */
+                pr[j] = u;                                          /* 存下来，反向算 SiLU' 要用 */
+                ga[j] = g;                                          /* 存下来，反向算 dg 要用 */
+                float sig = 1.0f / (1.0f + expf(-u));               /* sigmoid(u) */
+                float silu = u * sig;                               /* SiLU(u) = u·σ(u) */
+                ac[j] = silu * g;                                   /* 门控相乘：内容被门控调节 */
             }
         }
         memset(h_h2[l], 0, (size_t)BT * NEMBD * sizeof(float));     /* 清零 */
@@ -408,15 +467,29 @@ static void backward(void) {
         mm_nt(d_out, W2[l]->p, g_act[l], BT, NEMBD, MLP);              /* d act */
         mm_tn(h_act[l], d_out, W2[l]->g, BT, MLP, NEMBD);              /* dW2   */
 
-        for (int i = 0; i < BT; i++) {                                 /* 穿过 ReLU */
-            const float *pr = h_pre[l] + (size_t)i * MLP;              /* 加偏置后的值 */
-            const float *ga = g_act[l] + (size_t)i * MLP;              /* 激活后的梯度 */
-            float *gp = g_pre[l] + (size_t)i * MLP;                    /* 激活前的梯度 */
-            for (int j = 0; j < MLP; j++) gp[j] = pr[j] > 0.0f ? ga[j] : 0.0f;  /* ReLU'：>0 才传梯度 */
+        for (int i = 0; i < BT; i++) {                                 /* 穿过 SwiGLU 的两个支路 */
+            const float *pr = h_pre[l] + (size_t)i * MLP;              /* 内容支路 u */
+            const float *gg = h_gate[l] + (size_t)i * MLP;             /* 门控支路 g */
+            const float *gd = g_act[l] + (size_t)i * MLP;              /* 对 (SiLU(u)⊙g) 的梯度 */
+            float *gp = g_pre[l] + (size_t)i * MLP;                    /* 对 u 的梯度 */
+            float *ggr = g_gate[l] + (size_t)i * MLP;                  /* 对 g 的梯度 */
+            for (int j = 0; j < MLP; j++) {
+                float u = pr[j], g = gg[j], d = gd[j];                 /* 取出前向的值与上游梯度 */
+                float sig = 1.0f / (1.0f + expf(-u));                  /* σ(u) */
+                float silu = u * sig;                                  /* SiLU(u) */
+                float dsilu = sig * (1.0f + u * (1.0f - sig));         /* SiLU'(u) = σ(u)(1 + u(1-σ(u))) */
+                gp[j] = d * g * dsilu;                                 /* du = d · g · SiLU'(u) */
+                ggr[j] = d * silu;                                     /* dg = d · SiLU(u) */
+            }
         }
-        memset(g_ln2[l], 0, (size_t)BT * NEMBD * sizeof(float));       /* 清零 */
-        mm_nt(g_pre[l], W1[l]->p, g_ln2[l], BT, MLP, NEMBD);           /* d ln2 */
-        mm_tn(h_ln2[l], g_pre[l], W1[l]->g, BT, NEMBD, MLP);           /* dW1   */
+        memset(g_ln2[l], 0, (size_t)BT * NEMBD * sizeof(float));       /* 只清零一次，两条支路的 dx 都累加到这里 */
+        mm_nt(g_pre[l], W1[l]->p, g_ln2[l], BT, MLP, NEMBD);           /* 内容支路对输入的梯度 */
+        mm_nt(g_gate[l], W3[l]->p, g_ln2[l], BT, MLP, NEMBD);          /* 门控支路对输入的梯度（累加） */
+        mm_tn(h_ln2[l], g_pre[l], W1[l]->g, BT, NEMBD, MLP);           /* dW1 */
+        mm_tn(h_ln2[l], g_gate[l], W3[l]->g, BT, NEMBD, MLP);          /* dW3 */
+        for (int i = 0; i < BT; i++)                                    /* 门控偏置梯度 */
+            for (int j = 0; j < MLP; j++) b_3[l]->g[j] += g_gate[l][(size_t)i * MLP + j];  /* 求和 */
+
         for (int i = 0; i < BT; i++)                                    /* FFN 第一层偏置梯度 */
             for (int j = 0; j < MLP; j++) b_1[l]->g[j] += g_pre[l][(size_t)i * MLP + j];  /* 求和 */
         rmsnorm_bwd(h_x1[l], h_inv2[l], g_ln2[l], g_xin[l], BT);        /* → x1，累加到恒等支路上 */
@@ -471,6 +544,18 @@ static void backward(void) {
             }
         }
 
+#if USE_ROPE
+        for (int b = 0; b < B; b++) {                   /* 与 forward 完全相同的遍历顺序 */
+            for (int t = 0; t < T; t++) {
+                for (int h = 0; h < NHEAD; h++) {
+                    float *dq = g_qkv[l] + ((size_t)(b * T + t) * 3 * NEMBD) + h * HD;  /* 旋转坐标系下的 dQ */
+                    float *dk = dq + NEMBD;             /* 旋转坐标系下的 dK */
+                    rope_apply_bwd(dq, t, HD);          /* 反向旋转，转回原来的坐标系 */
+                    rope_apply_bwd(dk, t, HD);
+                }
+            }
+        }
+#endif
         memset(g_ln1[l], 0, (size_t)BT * NEMBD * sizeof(float));        /* 复用缓冲存 d(ln1) */
         mm_nt(g_qkv[l], Wqkv[l]->p, g_ln1[l], BT, 3 * NEMBD, NEMBD);    /* d ln1  */
         mm_tn(h_ln1[l], g_qkv[l], Wqkv[l]->g, BT, NEMBD, 3 * NEMBD);    /* dWqkv  */
@@ -484,13 +569,12 @@ static void backward(void) {
         memcpy(d_out, g_xin[l], (size_t)BT * NEMBD * sizeof(float));
     }
 
-    /* 嵌入梯度 */
+    /* 嵌入梯度：只有词嵌入要回传（位置信息由 RoPE 内部处理，没有可学习参数） */
     for (int i = 0; i < BT; i++) {
-        int tok = xs[i], t = i % T;
+        int tok = xs[i];
         const float *d = d_out + (size_t)i * NEMBD;
         for (int c = 0; c < NEMBD; c++) {
             p_tok->g[(size_t)tok * NEMBD + c] += d[c];
-            p_pos->g[(size_t)t * NEMBD + c]   += d[c];
         }
     }
 }
@@ -759,7 +843,8 @@ static int gradcheck(void) {
     /* 步长选择：float32 下 expf/logf 会给 loss 带来 ~1e-6 的绝对误差。
        数值差分 2*eps*|g| 必须远大于它，否则就是纯噪声。
        eps=0.2 时沿单位方向的每元素扰动约 0.2/sqrt(n)≈0.004，曲率误差仍很小。 */
-    float eps = 0.2f;                              /* 差分步长 */
+    float eps = 0.2f;                              /* 方向导数步长（整张量单位方向，每元素扰动 0.2/√n） */
+    float eps_el = 1e-3f;                          /* 逐元素差分步长：必须小，否则二阶项会污染结果 */
     float noise_floor = 1e-4f;      /* 方向导数低于此值即视为噪声不可分辨 */
     float worst_dir = 0.0f;                        /* 记录最差相对误差 */
     int bad = 0;                                   /* 记录超阈值的张量个数 */
@@ -786,7 +871,7 @@ static int gradcheck(void) {
         double num = (lp - lm) / (2.0 * eps);      /* 中心差分得到数值方向导数 */
         double denom = fabs(num) + fabs(ana) + 1e-6;  /* 相对误差的分母，加 1e-6 防零 */
         double rel = fabs(num - ana) / denom;      /* 相对误差 */
-        int noisy = fabs(ana) < noise_floor;      /* 梯度太小，float32 分辨不了 */
+        int noisy = (fabs(ana) < noise_floor) || (fabs(num) < noise_floor);  /* 两边都极小说明正负抵消，是噪声不是错误 */
         int ok = rel < 0.08;                       /* 8% 以内算通过，float32 下放宽一些 */
         if (rel > worst_dir && !noisy) worst_dir = rel;  /* 记录最差（忽略噪声项） */
         if (!ok && !noisy) bad++;                  /* 统计失败张量 */
@@ -808,10 +893,10 @@ static int gradcheck(void) {
             float ana = q->g[idx];                 /* 解析梯度 */
             if (fabsf(ana) < 1e-3f) { skipped++; continue; }  /* 太小会被噪声淹没，跳过 */
             float orig = q->p[idx];                /* 记住原值 */
-            q->p[idx] = orig + eps; forward(); float lp = loss_and_grad();  /* 加 eps 后的损失 */
-            q->p[idx] = orig - eps; forward(); float lm = loss_and_grad();  /* 减 eps 后的损失 */
+            q->p[idx] = orig + eps_el; forward(); float lp = loss_and_grad();  /* 加 eps_el 后的损失 */
+            q->p[idx] = orig - eps_el; forward(); float lm = loss_and_grad();  /* 减 eps_el 后的损失 */
             q->p[idx] = orig;                      /* 还原 */
-            float num = (lp - lm) / (2 * eps);     /* 中心差分 */
+            float num = (lp - lm) / (2 * eps_el);  /* 中心差分，步长小才准 */
             float rel = fabsf(num - ana) / (fabsf(num) + fabsf(ana) + 1e-6f);  /* 相对误差 */
             if (rel > worst_el) worst_el = rel;    /* 更新最差 */
             if (rel > 0.05f) {                     /* 超过 5% 认为是错误 */
