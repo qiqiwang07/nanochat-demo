@@ -833,7 +833,6 @@ static void chat_mode(const char *once) {
     int n = 0;
     printf("\n================ C 版迷你对话模型 ================\n");
     printf("直接输入问题回车；quit 退出；clear 重开对话。\n");
-    printf("（0.8M 参数、纯 C 训练，回答会很幼稚，请见谅）\n");
     printf("==================================================\n");
     for (;;) {
         if (once) {
@@ -1480,8 +1479,7 @@ static void ai_mode(void) {
     static int ctx[8192];
     int n = 0;
     printf("\n==============================================\n");
-    printf("  AI 助手（纯 C，离线）：想聊什么直接打字\n");
-    printf("  会聊天 / 会算数 / 会解方程 / 会应用题\n");
+    printf("  AI 助手：想聊什么直接打字\n");
     printf("  输入 quit 退出。\n");
     printf("==============================================\n");
     for (;;) {
