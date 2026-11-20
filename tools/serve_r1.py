@@ -439,6 +439,13 @@ class Handler(BaseHTTPRequestHandler):
             self._send(json.dumps({"ok": True}).encode())  # 返回最小 JSON
         elif u.path.startswith("/dl/"):  # 安装包下载
             self._serve_file(u.path[4:])  # 去掉 "/dl/" 前缀取文件名
+        elif u.path in ("/callgraph", "/callgraph.html"):  # 函数调用示意图页面
+            p2 = os.path.join(HERE, "callgraph.html")  # 与脚本同目录
+            if os.path.isfile(p2):  # 存在才返回
+                with open(p2, "rb") as f2:  # 二进制读
+                    self._send(f2.read(), "text/html")  # 以 HTML 返回
+            else:  # 文件缺失
+                self._send(b'{"error":"callgraph.html not found"}')  # 明确报错
         elif u.path in ("/", "/chat.html"):  # 首页与显式页面路径都返回同一份 HTML
             p = os.path.join(BIN_DIR, "chat.html")  # 页面文件位置
             with open(p, "rb") as f:  # 二进制读，避免编码转换
