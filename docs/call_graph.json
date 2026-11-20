@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-20 19:18",
+ "generated": "2026-11-20 19:26",
  "functions": [
   {
    "id": "deploy/bench_7b.py::ask",
@@ -1986,7 +1986,7 @@
    "name": "xrand",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "------------------------------ 随机数 ----------------------------------",
+   "doc": "",
    "calls": [],
    "line": 65,
    "in_degree": 21
@@ -1996,7 +1996,7 @@
    "name": "frand",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "------------------------------ 随机数 ----------------------------------",
+   "doc": "",
    "calls": [
     "xrand"
    ],
@@ -2008,7 +2008,7 @@
    "name": "nrand",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "------------------------------ 随机数 ----------------------------------",
+   "doc": "",
    "calls": [
     "_Pragma",
     "cosf",
@@ -2024,7 +2024,7 @@
    "name": "mm_nn",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "------------------------------ 矩阵乘法（累加语义）--------------------",
+   "doc": "矩阵乘法（累加语义）",
    "calls": [],
    "line": 83,
    "in_degree": 7
@@ -2054,7 +2054,7 @@
    "name": "alloc_activations",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "嵌入，即第 0 层输入",
+   "doc": "",
    "calls": [
     "calloc",
     "falloc"
@@ -2079,7 +2079,7 @@
    "name": "is_bias",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "",
+   "doc": "初始化",
    "calls": [
     "strstr"
    ],
@@ -2091,7 +2091,7 @@
    "name": "init_params",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "------------------------------ 初始化 ----------------------------------",
+   "doc": "",
    "calls": [
     "add_param",
     "is_bias",
@@ -2120,7 +2120,7 @@
    "name": "rmsnorm_bwd",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "------------------------------ RMSNorm --------------------------------",
+   "doc": "",
    "calls": [],
    "line": 210,
    "in_degree": 7
@@ -2147,7 +2147,7 @@
    "name": "loss_and_grad",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "---- 输出层 ----",
+   "doc": "",
    "calls": [
     "expf",
     "logf"
@@ -2178,7 +2178,7 @@
    "name": "grad_norm",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "嵌入梯度",
+   "doc": "",
    "calls": [
     "sqrt"
    ],
@@ -2190,7 +2190,7 @@
    "name": "adamw_step",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "------------------------------ AdamW ----------------------------------",
+   "doc": "",
    "calls": [
     "grad_norm",
     "powf",
@@ -2204,7 +2204,7 @@
    "name": "load_corpus",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "全局梯度裁剪",
+   "doc": "语料与词表",
    "calls": [
     "fclose",
     "fopen",
@@ -2325,7 +2325,7 @@
    "name": "load_weights",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "------------------------------ 权重存取 --------------------------------",
+   "doc": "",
    "calls": [
     "fclose",
     "fopen",
@@ -2368,7 +2368,7 @@
    "name": "chat_mode",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "迭代 19 次得到第 20 大的值",
+   "doc": "",
    "calls": [
     "chat_generate",
     "ctx_append",
@@ -2387,7 +2387,7 @@
    "name": "ask_mode",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "chat_mode：不传 question 就是交互式；传了就是问一句答一句然后退出",
+   "doc": "",
    "calls": [
     "chat_generate",
     "ctx_append"
@@ -2400,7 +2400,7 @@
    "name": "looks_utf8",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "chat_mode：不传 question 就是交互式；传了就是问一句答一句然后退出",
+   "doc": "",
    "calls": [
     "MultiByteToWideChar",
     "WideCharToMultiByte",
@@ -2419,7 +2419,7 @@
    "name": "arith_eval",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "------------------------------ 解题模式 --------------------------------",
+   "doc": "",
    "calls": [
     "e_expr",
     "fclose",
@@ -2438,7 +2438,7 @@
    "name": "e_skip",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "0 一位数 1 两位数 2 乘法",
+   "doc": "",
    "calls": [],
    "line": 917,
    "in_degree": 24
@@ -2448,7 +2448,7 @@
    "name": "e_prim",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "0 一位数 1 两位数 2 乘法",
+   "doc": "",
    "calls": [
     "e_expr",
     "e_skip",
@@ -2462,7 +2462,7 @@
    "name": "e_pow",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "接近贪婪解码",
+   "doc": "",
    "calls": [
     "e_prim",
     "e_skip",
@@ -2476,7 +2476,7 @@
    "name": "e_term",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "接近贪婪解码",
+   "doc": "",
    "calls": [
     "e_pow",
     "e_skip"
@@ -2489,7 +2489,7 @@
    "name": "e_expr",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "前几题打印出来看模型到底输出了什么",
+   "doc": "",
    "calls": [
     "e_skip",
     "e_term"
@@ -2502,7 +2502,7 @@
    "name": "eval_expr",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "前几题打印出来看模型到底输出了什么",
+   "doc": "",
    "calls": [
     "e_expr"
    ],
@@ -2528,7 +2528,7 @@
    "name": "verify_chain",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "====================== 生成到缓冲区（不打印）===========================",
+   "doc": "",
    "calls": [
     "atof",
     "eval_expr",
@@ -2550,7 +2550,7 @@
    "name": "think_mode",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "====================== 逐步验算 + 投票 ================================",
+   "doc": "",
    "calls": [
     "gen_text",
     "lin_term",
@@ -2582,7 +2582,7 @@
    "name": "u8_next",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "============================ 一元一次方程 ===============================",
+   "doc": "",
    "calls": [
     "u8_prev"
    ],
@@ -2594,7 +2594,7 @@
    "name": "cn_digit",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "处理 x/2 这种除法",
+   "doc": "",
    "calls": [],
    "line": 1143,
    "in_degree": 10
@@ -2617,7 +2617,7 @@
    "name": "collect_numbers",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "======================= 中文数字与题型规则引擎 =========================",
+   "doc": "",
    "calls": [
     "cn_digit",
     "parse_cn",
@@ -2655,7 +2655,7 @@
    "name": "first_any",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "折",
+   "doc": "",
    "calls": [],
    "line": 1273,
    "in_degree": 0
@@ -2665,7 +2665,7 @@
    "name": "max_num",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "折",
+   "doc": "",
    "calls": [],
    "line": 1277,
    "in_degree": 5
@@ -2675,7 +2675,7 @@
    "name": "emit",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "注意：这里是倒序收集",
+   "doc": "",
    "calls": [
     "eval_expr",
     "isnan"
@@ -2688,7 +2688,7 @@
    "name": "try_rules",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "七五折 -> 75 -> 0.75",
+   "doc": "",
    "calls": [
     "collect_numbers",
     "emit",
@@ -2707,7 +2707,7 @@
    "name": "chat_reply",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "百分比增减",
+   "doc": "",
    "calls": [
     "has",
     "localtime",
@@ -2721,7 +2721,7 @@
    "name": "is_arith_s",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "平均",
+   "doc": "",
    "calls": [
     "isdigit",
     "strchr"
@@ -2734,7 +2734,7 @@
    "name": "ai_mode",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "求剩余",
+   "doc": "",
    "calls": [
     "chat_generate",
     "chat_reply",
@@ -2762,7 +2762,7 @@
    "name": "main",
    "file": "src/ai.c",
    "lang": "c",
-   "doc": "====================== 闲聊应答（中文寒暄）=============================",
+   "doc": "",
    "calls": [
     "SetConsoleOutputCP",
     "ai_mode",
@@ -2792,7 +2792,7 @@
    "name": "xrand",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "------------------------------ 随机数 ----------------------------------",
+   "doc": "",
    "calls": [],
    "line": 82,
    "in_degree": 21
@@ -2802,7 +2802,7 @@
    "name": "frand",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "------------------------------ 随机数 ----------------------------------",
+   "doc": "",
    "calls": [
     "xrand"
    ],
@@ -2814,7 +2814,7 @@
    "name": "nrand",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "------------------------------ 随机数 ----------------------------------",
+   "doc": "",
    "calls": [
     "_Pragma",
     "cosf",
@@ -2830,7 +2830,7 @@
    "name": "mm_nn",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "------------------------------ 矩阵乘法（累加语义）--------------------",
+   "doc": "矩阵乘法（累加语义）",
    "calls": [],
    "line": 100,
    "in_degree": 7
@@ -2860,7 +2860,7 @@
    "name": "alloc_activations",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "嵌入，即第 0 层输入",
+   "doc": "",
    "calls": [
     "calloc",
     "falloc"
@@ -2885,7 +2885,7 @@
    "name": "is_bias",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "",
+   "doc": "初始化",
    "calls": [
     "strstr"
    ],
@@ -2897,7 +2897,7 @@
    "name": "init_params",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "------------------------------ 初始化 ----------------------------------",
+   "doc": "",
    "calls": [
     "add_param",
     "is_bias",
@@ -2926,7 +2926,7 @@
    "name": "rmsnorm_bwd",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "------------------------------ RMSNorm --------------------------------",
+   "doc": "",
    "calls": [],
    "line": 227,
    "in_degree": 7
@@ -2953,7 +2953,7 @@
    "name": "loss_and_grad",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "---- 输出层 ----",
+   "doc": "",
    "calls": [
     "expf",
     "logf"
@@ -2984,7 +2984,7 @@
    "name": "grad_norm",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "嵌入梯度",
+   "doc": "",
    "calls": [
     "sqrt"
    ],
@@ -2996,7 +2996,7 @@
    "name": "adamw_step",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "------------------------------ AdamW ----------------------------------",
+   "doc": "",
    "calls": [
     "grad_norm",
     "powf",
@@ -3010,7 +3010,7 @@
    "name": "cmap_init",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "------------------------------ 语料与词表 ------------------------------",
+   "doc": "字符级：一个汉字就是一个 token，模型只能吐出完整字符，不会出乱码",
    "calls": [],
    "line": 508,
    "in_degree": 8
@@ -3020,7 +3020,7 @@
    "name": "char_id",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "id -> Unicode 码点",
+   "doc": "",
    "calls": [],
    "line": 510,
    "in_degree": 8
@@ -3030,7 +3030,7 @@
    "name": "cmap_put",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "id -> Unicode 码点",
+   "doc": "",
    "calls": [],
    "line": 516,
    "in_degree": 8
@@ -3040,7 +3040,7 @@
    "name": "u8_get",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "id -> Unicode 码点",
+   "doc": "",
    "calls": [],
    "line": 524,
    "in_degree": 8
@@ -3073,7 +3073,7 @@
    "name": "id_to_out",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "UTF-8 字符串 -> id 序列",
+   "doc": "",
    "calls": [
     "u8_put"
    ],
@@ -3085,7 +3085,7 @@
    "name": "load_corpus",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "id -> 文本字节，返回字节数",
+   "doc": "",
    "calls": [
     "char_id",
     "cmap_init",
@@ -3260,7 +3260,7 @@
    "name": "chat_mode",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "迭代 19 次得到第 20 大的值",
+   "doc": "",
    "calls": [
     "chat_generate",
     "ctx_append",
@@ -3279,7 +3279,7 @@
    "name": "ask_mode",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "chat_mode：不传 question 就是交互式；传了就是问一句答一句然后退出",
+   "doc": "",
    "calls": [
     "chat_generate",
     "ctx_append"
@@ -3292,7 +3292,7 @@
    "name": "looks_utf8",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "chat_mode：不传 question 就是交互式；传了就是问一句答一句然后退出",
+   "doc": "",
    "calls": [
     "MultiByteToWideChar",
     "WideCharToMultiByte",
@@ -3311,7 +3311,7 @@
    "name": "arith_eval",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "------------------------------ 解题模式 --------------------------------",
+   "doc": "",
    "calls": [
     "e_expr",
     "fclose",
@@ -3330,7 +3330,7 @@
    "name": "e_skip",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "====================== 算术考试（用精确计算器判分）=====================",
+   "doc": "",
    "calls": [],
    "line": 1055,
    "in_degree": 24
@@ -3340,7 +3340,7 @@
    "name": "e_prim",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "====================== 算术考试（用精确计算器判分）=====================",
+   "doc": "",
    "calls": [
     "e_expr",
     "e_skip",
@@ -3354,7 +3354,7 @@
    "name": "e_pow",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "0 一位数 1 两位数 2 乘法",
+   "doc": "",
    "calls": [
     "e_prim",
     "e_skip",
@@ -3368,7 +3368,7 @@
    "name": "e_term",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "接近贪婪解码",
+   "doc": "",
    "calls": [
     "e_pow",
     "e_skip"
@@ -3381,7 +3381,7 @@
    "name": "e_expr",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "前几题打印出来看模型到底输出了什么",
+   "doc": "",
    "calls": [
     "e_skip",
     "e_term"
@@ -3394,7 +3394,7 @@
    "name": "eval_expr",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "前几题打印出来看模型到底输出了什么",
+   "doc": "",
    "calls": [
     "e_expr"
    ],
@@ -3422,7 +3422,7 @@
    "name": "verify_chain",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "====================== 生成到缓冲区（不打印）===========================",
+   "doc": "",
    "calls": [
     "atof",
     "eval_expr",
@@ -3444,7 +3444,7 @@
    "name": "think_mode",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "====================== 逐步验算 + 投票 ================================",
+   "doc": "",
    "calls": [
     "gen_text",
     "lin_term",
@@ -3476,7 +3476,7 @@
    "name": "u8_next",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "============================ 一元一次方程 ===============================",
+   "doc": "",
    "calls": [
     "u8_prev"
    ],
@@ -3488,7 +3488,7 @@
    "name": "cn_digit",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "处理 x/2 这种除法",
+   "doc": "",
    "calls": [],
    "line": 1286,
    "in_degree": 10
@@ -3511,7 +3511,7 @@
    "name": "collect_numbers",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "======================= 中文数字与题型规则引擎 =========================",
+   "doc": "",
    "calls": [
     "cn_digit",
     "parse_cn",
@@ -3527,7 +3527,7 @@
    "name": "has",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "百分之 X ：字节序列 百(E7 99 BE) 分(E5 88 86) 之(E4 B9 8B)",
+   "doc": "",
    "calls": [
     "strstr"
    ],
@@ -3549,7 +3549,7 @@
    "name": "first_any",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "打折：形如 八折 / 七五折 / 8折 / 8.5折",
+   "doc": "",
    "calls": [],
    "line": 1417,
    "in_degree": 0
@@ -3559,7 +3559,7 @@
    "name": "max_num",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "折",
+   "doc": "",
    "calls": [],
    "line": 1421,
    "in_degree": 5
@@ -3569,7 +3569,7 @@
    "name": "emit",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "注意：这里是倒序收集",
+   "doc": "",
    "calls": [
     "eval_expr",
     "isnan",
@@ -3583,7 +3583,7 @@
    "name": "try_rules",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "八折 -> 0.8",
+   "doc": "",
    "calls": [
     "collect_numbers",
     "emit",
@@ -3834,7 +3834,7 @@
    "name": "main",
    "file": "src/gui.c",
    "lang": "c",
-   "doc": "文件操作：读直接给；写/删/建目录一律弹窗确认",
+   "doc": "",
    "calls": [
     "CreateWindowW",
     "DispatchMessageW",
@@ -3859,7 +3859,7 @@
    "name": "xrand",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "------------------------------ 随机数 ----------------------------------",
+   "doc": "",
    "calls": [],
    "line": 82,
    "in_degree": 21
@@ -3869,7 +3869,7 @@
    "name": "frand",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "再右移，打散相关性",
+   "doc": "",
    "calls": [
     "xrand"
    ],
@@ -3881,7 +3881,7 @@
    "name": "nrand",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "生成 [0,1) 的均匀分布浮点：取 24 位有效数字，正好是 float 的尾数精度",
+   "doc": "",
    "calls": [
     "_Pragma",
     "cosf",
@@ -3897,7 +3897,7 @@
    "name": "mm_nn",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "------------------------------ 矩阵乘法（累加语义）--------------------",
+   "doc": "矩阵乘法（累加语义）",
    "calls": [],
    "line": 106,
    "in_degree": 7
@@ -3907,7 +3907,7 @@
    "name": "mm_nt",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "第 k 个输入对应的权重行",
+   "doc": "",
    "calls": [],
    "line": 118,
    "in_degree": 7
@@ -3917,7 +3917,7 @@
    "name": "mm_tn",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "点积",
+   "doc": "",
    "calls": [],
    "line": 134,
    "in_degree": 7
@@ -3927,7 +3927,7 @@
    "name": "alloc_activations",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "最终层梯度、logits 梯度、通用临时缓冲",
+   "doc": "",
    "calls": [
     "calloc",
     "falloc"
@@ -3940,7 +3940,7 @@
    "name": "zero_grads",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "输入 token 编号",
+   "doc": "",
    "calls": [
     "memset"
    ],
@@ -3952,7 +3952,7 @@
    "name": "is_bias",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "按字节清零最快",
+   "doc": "初始化",
    "calls": [
     "strstr"
    ],
@@ -3964,7 +3964,7 @@
    "name": "init_params",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "判断参数名是不是偏置：偏置初始化为 0，权重才用随机初始化",
+   "doc": "",
    "calls": [
     "add_param",
     "is_bias",
@@ -3981,7 +3981,7 @@
    "name": "rope_apply",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "报告规模，便于判断是否超出内存",
+   "doc": "RoPE 旋转位置编码",
    "calls": [
     "cosf",
     "powf",
@@ -3995,7 +3995,7 @@
    "name": "rope_apply_bwd",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "取出一对分量",
+   "doc": "",
    "calls": [
     "cosf",
     "powf",
@@ -4009,7 +4009,7 @@
    "name": "rmsnorm_fwd",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "保持正交性",
+   "doc": "",
    "calls": [
     "sqrtf"
    ],
@@ -4021,7 +4021,7 @@
    "name": "rmsnorm_bwd",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "取倒数平方根，加 eps 防除零",
+   "doc": "",
    "calls": [],
    "line": 286,
    "in_degree": 7
@@ -4031,7 +4031,7 @@
    "name": "forward",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "修正项系数",
+   "doc": "",
    "calls": [
     "collapse",
     "expf",
@@ -4049,7 +4049,7 @@
    "name": "loss_and_grad",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "投影到词表维度",
+   "doc": "",
    "calls": [
     "expf",
     "logf"
@@ -4062,7 +4062,7 @@
    "name": "backward",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "本位置的梯度缓冲",
+   "doc": "",
    "calls": [
     "collapse",
     "expf",
@@ -4082,7 +4082,7 @@
    "name": "grad_norm",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "嵌入梯度：只有词嵌入要回传（位置信息由 RoPE 内部处理，没有可学习参数）",
+   "doc": "",
    "calls": [
     "sqrt"
    ],
@@ -4094,7 +4094,7 @@
    "name": "adamw_step",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "遍历每个张量",
+   "doc": "",
    "calls": [
     "grad_norm",
     "powf",
@@ -4108,7 +4108,7 @@
    "name": "cmap_init",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "id -> Unicode 码点",
+   "doc": "",
    "calls": [],
    "line": 618,
    "in_degree": 8
@@ -4118,7 +4118,7 @@
    "name": "char_id",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "字符哈希表容量，2 的幂便于用掩码取模",
+   "doc": "",
    "calls": [],
    "line": 619,
    "in_degree": 8
@@ -4128,7 +4128,7 @@
    "name": "cmap_put",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "线性探测",
+   "doc": "",
    "calls": [],
    "line": 627,
    "in_degree": 8
@@ -4138,7 +4138,7 @@
    "name": "u8_get",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "与查找一致",
+   "doc": "",
    "calls": [],
    "line": 635,
    "in_degree": 8
@@ -4148,7 +4148,7 @@
    "name": "u8_put",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "两字节",
+   "doc": "",
    "calls": [],
    "line": 643,
    "in_degree": 4
@@ -4158,7 +4158,7 @@
    "name": "str_to_ids",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "四字节低两位",
+   "doc": "",
    "calls": [
     "char_id",
     "u8_get"
@@ -4171,7 +4171,7 @@
    "name": "id_to_out",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "逐字符解码",
+   "doc": "",
    "calls": [
     "u8_put"
    ],
@@ -4183,7 +4183,7 @@
    "name": "load_corpus",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "把模型输出的 id 还原成可打印字节",
+   "doc": "",
    "calls": [
     "char_id",
     "cmap_init",
@@ -4205,7 +4205,7 @@
    "name": "sample_batch",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "训练/验证切分",
+   "doc": "",
    "calls": [
     "xrand"
    ],
@@ -4217,7 +4217,7 @@
    "name": "eval_loss",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "逐条序列",
+   "doc": "",
    "calls": [
     "forward",
     "loss_and_grad",
@@ -4231,7 +4231,7 @@
    "name": "generate",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "在验证集上估平均损失，不更新参数",
+   "doc": "",
    "calls": [
     "expf",
     "fflush",
@@ -4249,7 +4249,7 @@
    "name": "generate_raw",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "立刻打印，形成流式输出",
+   "doc": "",
    "calls": [
     "expf",
     "fflush",
@@ -4267,7 +4267,7 @@
    "name": "gradcheck",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "立即刷出，上层才能流式收到",
+   "doc": "",
    "calls": [
     "alloc_activations",
     "backward",
@@ -4292,7 +4292,7 @@
    "name": "train",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "打印细节便于定位",
+   "doc": "",
    "calls": [
     "adamw_step",
     "backward",
@@ -4314,7 +4314,7 @@
    "name": "save_weights",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "定期存检查点，避免训练中断白跑",
+   "doc": "",
    "calls": [
     "fclose",
     "fopen",
@@ -4330,7 +4330,7 @@
    "name": "load_weights",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "张量个数",
+   "doc": "",
    "calls": [
     "cmap_init",
     "cmap_put",
@@ -4348,7 +4348,7 @@
    "name": "ctx_append",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "逐个张量读",
+   "doc": "",
    "calls": [
     "str_to_ids"
    ],
@@ -4360,7 +4360,7 @@
    "name": "chat_generate",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "读长度",
+   "doc": "",
    "calls": [
     "expf",
     "fflush",
@@ -4378,7 +4378,7 @@
    "name": "chat_mode",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "轮盘赌的随机落点",
+   "doc": "",
    "calls": [
     "chat_generate",
     "ctx_append",
@@ -4397,7 +4397,7 @@
    "name": "ask_mode",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "提示符立即显示",
+   "doc": "",
    "calls": [
     "chat_generate",
     "ctx_append"
@@ -4410,7 +4410,7 @@
    "name": "looks_utf8",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "提示模型该它说了",
+   "doc": "",
    "calls": [
     "MultiByteToWideChar",
     "WideCharToMultiByte",
@@ -4429,7 +4429,7 @@
    "name": "arith_eval",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "后续字节必须是 10xxxxxx",
+   "doc": "",
    "calls": [
     "e_expr",
     "fclose",
@@ -4448,7 +4448,7 @@
    "name": "e_skip",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "把输出前导数字转成整数",
+   "doc": "",
    "calls": [],
    "line": 1249,
    "in_degree": 24
@@ -4458,7 +4458,7 @@
    "name": "e_prim",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "答对则累加",
+   "doc": "",
    "calls": [
     "e_expr",
     "e_skip",
@@ -4472,7 +4472,7 @@
    "name": "e_pow",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "展示对错",
+   "doc": "",
    "calls": [
     "e_prim",
     "e_skip",
@@ -4486,7 +4486,7 @@
    "name": "e_term",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "汇总",
+   "doc": "精确算术（独立于模型的验算器）",
    "calls": [
     "e_pow",
     "e_skip"
@@ -4499,7 +4499,7 @@
    "name": "e_expr",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "最底层：括号、正负号、数字字面量",
+   "doc": "",
    "calls": [
     "e_skip",
     "e_term"
@@ -4512,7 +4512,7 @@
    "name": "eval_expr",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "前进游标并返回数值",
+   "doc": "",
    "calls": [
     "e_expr"
    ],
@@ -4524,7 +4524,7 @@
    "name": "gen_text",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "跳过空白",
+   "doc": "",
    "calls": [
     "expf",
     "forward",
@@ -4540,7 +4540,7 @@
    "name": "verify_chain",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "用最大 logit 做稳定归一化",
+   "doc": "",
    "calls": [
     "atof",
     "eval_expr",
@@ -4562,7 +4562,7 @@
    "name": "think_mode",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "读到换行或下一个标记",
+   "doc": "",
    "calls": [
     "gen_text",
     "memset",
@@ -4578,7 +4578,7 @@
    "name": "r_skip",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "按训练格式拼提示",
+   "doc": "",
    "calls": [
     "calloc",
     "exit",
@@ -4597,7 +4597,7 @@
    "name": "r_apply",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "解析游标",
+   "doc": "",
    "calls": [
     "pow"
    ],
@@ -4609,7 +4609,7 @@
    "name": "r_eval",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "一元负号",
+   "doc": "",
    "calls": [
     "r_apply"
    ],
@@ -4621,7 +4621,7 @@
    "name": "r_depth",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "乘除：左结合",
+   "doc": "",
    "calls": [],
    "line": 1536,
    "in_degree": 1
@@ -4631,7 +4631,7 @@
    "name": "r_free",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "乘除：左结合",
+   "doc": "",
    "calls": [
     "free"
    ],
@@ -4643,7 +4643,7 @@
    "name": "reason_mode",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "加减：优先级最低",
+   "doc": "",
    "calls": [
     "eval_expr",
     "fabs",
@@ -4663,7 +4663,7 @@
    "name": "chain_verify",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "再算右子树",
+   "doc": "",
    "calls": [
     "atof",
     "eval_expr",
@@ -4681,7 +4681,7 @@
    "name": "main",
    "file": "src/nanogpt.c",
    "lang": "c",
-   "doc": "拷贝一份，避免改动入参",
+   "doc": "",
    "calls": [
     "SetConsoleOutputCP",
     "alloc_activations",
@@ -4713,7 +4713,7 @@
    "name": "xrand",
    "file": "src/nanogpt_dbl.c",
    "lang": "c",
-   "doc": "------------------------------ 随机数 ----------------------------------",
+   "doc": "",
    "calls": [],
    "line": 67,
    "in_degree": 21
@@ -4723,7 +4723,7 @@
    "name": "frand",
    "file": "src/nanogpt_dbl.c",
    "lang": "c",
-   "doc": "------------------------------ 随机数 ----------------------------------",
+   "doc": "",
    "calls": [
     "xrand"
    ],
@@ -4735,7 +4735,7 @@
    "name": "nrand",
    "file": "src/nanogpt_dbl.c",
    "lang": "c",
-   "doc": "------------------------------ 随机数 ----------------------------------",
+   "doc": "",
    "calls": [
     "COS",
     "LOG",
@@ -4751,7 +4751,7 @@
    "name": "mm_nn",
    "file": "src/nanogpt_dbl.c",
    "lang": "c",
-   "doc": "------------------------------ 矩阵乘法（累加语义）--------------------",
+   "doc": "矩阵乘法（累加语义）",
    "calls": [],
    "line": 85,
    "in_degree": 7
@@ -4781,7 +4781,7 @@
    "name": "alloc_activations",
    "file": "src/nanogpt_dbl.c",
    "lang": "c",
-   "doc": "嵌入，即第 0 层输入",
+   "doc": "",
    "calls": [
     "calloc",
     "falloc"
@@ -4806,7 +4806,7 @@
    "name": "is_bias",
    "file": "src/nanogpt_dbl.c",
    "lang": "c",
-   "doc": "",
+   "doc": "初始化",
    "calls": [
     "strstr"
    ],
@@ -4818,7 +4818,7 @@
    "name": "init_params",
    "file": "src/nanogpt_dbl.c",
    "lang": "c",
-   "doc": "------------------------------ 初始化 ----------------------------------",
+   "doc": "",
    "calls": [
     "add_param",
     "is_bias",
@@ -4847,7 +4847,7 @@
    "name": "rmsnorm_bwd",
    "file": "src/nanogpt_dbl.c",
    "lang": "c",
-   "doc": "------------------------------ RMSNorm --------------------------------",
+   "doc": "",
    "calls": [],
    "line": 212,
    "in_degree": 7
@@ -4874,7 +4874,7 @@
    "name": "loss_and_grad",
    "file": "src/nanogpt_dbl.c",
    "lang": "c",
-   "doc": "---- 输出层 ----",
+   "doc": "",
    "calls": [
     "EXP",
     "LOG"
@@ -4905,7 +4905,7 @@
    "name": "grad_norm",
    "file": "src/nanogpt_dbl.c",
    "lang": "c",
-   "doc": "嵌入梯度",
+   "doc": "",
    "calls": [
     "sqrt"
    ],
@@ -4917,7 +4917,7 @@
    "name": "adamw_step",
    "file": "src/nanogpt_dbl.c",
    "lang": "c",
-   "doc": "------------------------------ AdamW ----------------------------------",
+   "doc": "",
    "calls": [
     "SQRT",
     "grad_norm",
@@ -4931,7 +4931,7 @@
    "name": "load_corpus",
    "file": "src/nanogpt_dbl.c",
    "lang": "c",
-   "doc": "全局梯度裁剪",
+   "doc": "语料与词表",
    "calls": [
     "fclose",
     "fopen",
@@ -4949,7 +4949,7 @@
    "name": "sample_batch",
    "file": "src/nanogpt_dbl.c",
    "lang": "c",
-   "doc": "取最高频字节",
+   "doc": "",
    "calls": [
     "xrand"
    ],
@@ -4991,7 +4991,7 @@
    "name": "gradcheck",
    "file": "src/nanogpt_dbl.c",
    "lang": "c",
-   "doc": "",
+   "doc": "梯度检查",
    "calls": [
     "alloc_activations",
     "backward",
@@ -5055,7 +5055,7 @@
    "name": "xrand",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "------------------------------ 随机数 ----------------------------------",
+   "doc": "",
    "calls": [],
    "line": 83,
    "in_degree": 21
@@ -5065,7 +5065,7 @@
    "name": "frand",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "再右移，打散相关性",
+   "doc": "",
    "calls": [
     "xrand"
    ],
@@ -5077,7 +5077,7 @@
    "name": "nrand",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "生成 [0,1) 的均匀分布浮点：取 24 位有效数字，正好是 float 的尾数精度",
+   "doc": "",
    "calls": [
     "_Pragma",
     "cosf",
@@ -5093,7 +5093,7 @@
    "name": "mm_nn",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "------------------------------ 矩阵乘法（累加语义）--------------------",
+   "doc": "矩阵乘法（累加语义）",
    "calls": [],
    "line": 107,
    "in_degree": 7
@@ -5103,7 +5103,7 @@
    "name": "mm_nt",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "第 k 个输入对应的权重行",
+   "doc": "",
    "calls": [],
    "line": 119,
    "in_degree": 7
@@ -5113,7 +5113,7 @@
    "name": "mm_tn",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "点积",
+   "doc": "",
    "calls": [],
    "line": 135,
    "in_degree": 7
@@ -5123,7 +5123,7 @@
    "name": "alloc_activations",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "最终层梯度、logits 梯度、通用临时缓冲",
+   "doc": "",
    "calls": [
     "calloc",
     "falloc"
@@ -5136,7 +5136,7 @@
    "name": "zero_grads",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "输入 token 编号",
+   "doc": "",
    "calls": [
     "memset"
    ],
@@ -5148,7 +5148,7 @@
    "name": "is_bias",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "按字节清零最快",
+   "doc": "初始化",
    "calls": [
     "strstr"
    ],
@@ -5160,7 +5160,7 @@
    "name": "init_params",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "判断参数名是不是偏置：偏置初始化为 0，权重才用随机初始化",
+   "doc": "",
    "calls": [
     "add_param",
     "is_bias",
@@ -5177,7 +5177,7 @@
    "name": "rope_apply",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "报告规模，便于判断是否超出内存",
+   "doc": "RoPE 旋转位置编码",
    "calls": [
     "cosf",
     "powf",
@@ -5191,7 +5191,7 @@
    "name": "rope_apply_bwd",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "预计算三角函数",
+   "doc": "",
    "calls": [
     "cosf",
     "powf",
@@ -5205,7 +5205,7 @@
    "name": "rmsnorm_fwd",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "转置旋转，符号相反",
+   "doc": "",
    "calls": [
     "sqrtf"
    ],
@@ -5217,7 +5217,7 @@
    "name": "rmsnorm_bwd",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "取倒数平方根，加 eps 防除零",
+   "doc": "",
    "calls": [],
    "line": 303,
    "in_degree": 7
@@ -5227,7 +5227,7 @@
    "name": "forward",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "计算 g 对 x 的导数所需的点积",
+   "doc": "",
    "calls": [
     "collapse",
     "expf",
@@ -5245,7 +5245,7 @@
    "name": "loss_and_grad",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "投影到词表维度",
+   "doc": "",
    "calls": [
     "expf",
     "logf"
@@ -5258,7 +5258,7 @@
    "name": "backward",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "本位置的梯度缓冲",
+   "doc": "",
    "calls": [
     "collapse",
     "expf",
@@ -5278,7 +5278,7 @@
    "name": "grad_norm",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "嵌入梯度：只有词嵌入要回传（位置信息由 RoPE 内部处理，没有可学习参数）",
+   "doc": "",
    "calls": [
     "sqrt"
    ],
@@ -5290,7 +5290,7 @@
    "name": "adamw_step",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "遍历每个张量",
+   "doc": "",
    "calls": [
     "grad_norm",
     "powf",
@@ -5304,7 +5304,7 @@
    "name": "cmap_init",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "===== 字符级：一个汉字就是一个 token，模型只能吐出完整字符，不会出乱码 =====",
+   "doc": "",
    "calls": [],
    "line": 678,
    "in_degree": 8
@@ -5314,7 +5314,7 @@
    "name": "char_id",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "字符哈希表容量，2 的幂便于用掩码取模",
+   "doc": "",
    "calls": [],
    "line": 680,
    "in_degree": 8
@@ -5324,7 +5324,7 @@
    "name": "cmap_put",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "起始槽位",
+   "doc": "",
    "calls": [],
    "line": 687,
    "in_degree": 8
@@ -5334,7 +5334,7 @@
    "name": "u8_get",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "与查找一致",
+   "doc": "",
    "calls": [],
    "line": 696,
    "in_degree": 8
@@ -5344,7 +5344,7 @@
    "name": "u8_put",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "两字节",
+   "doc": "",
    "calls": [],
    "line": 704,
    "in_degree": 4
@@ -5354,7 +5354,7 @@
    "name": "str_to_ids",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "四字节高两位",
+   "doc": "",
    "calls": [
     "char_id",
     "u8_get"
@@ -5367,7 +5367,7 @@
    "name": "id_to_out",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "按字节游标前进",
+   "doc": "",
    "calls": [
     "u8_put"
    ],
@@ -5379,7 +5379,7 @@
    "name": "load_corpus",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "把模型输出的 id 还原成可打印字节",
+   "doc": "",
    "calls": [
     "char_id",
     "cmap_init",
@@ -5401,7 +5401,7 @@
    "name": "sample_batch",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "训练/验证切分",
+   "doc": "",
    "calls": [
     "xrand"
    ],
@@ -5413,7 +5413,7 @@
    "name": "eval_loss",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "逐条序列",
+   "doc": "",
    "calls": [
     "forward",
     "loss_and_grad",
@@ -5427,7 +5427,7 @@
    "name": "generate",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "目标：下一个位置的 token（语言模型的自监督目标）",
+   "doc": "在验证集上估平均损失，不更新参数",
    "calls": [
     "expf",
     "fflush",
@@ -5445,7 +5445,7 @@
    "name": "generate_raw",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "立刻打印，形成流式输出",
+   "doc": "",
    "calls": [
     "expf",
     "fflush",
@@ -5463,7 +5463,7 @@
    "name": "gradcheck",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "只写正文，不加任何装饰",
+   "doc": "",
    "calls": [
     "alloc_activations",
     "backward",
@@ -5488,7 +5488,7 @@
    "name": "train",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "打印细节便于定位",
+   "doc": "",
    "calls": [
     "adamw_step",
     "backward",
@@ -5510,7 +5510,7 @@
    "name": "save_weights",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "立即刷出，方便边训边看",
+   "doc": "",
    "calls": [
     "fclose",
     "fopen",
@@ -5526,7 +5526,7 @@
    "name": "load_weights",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "张量个数",
+   "doc": "",
    "calls": [
     "cmap_init",
     "cmap_put",
@@ -5544,7 +5544,7 @@
    "name": "ctx_append",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "个数必须一致",
+   "doc": "",
    "calls": [
     "str_to_ids"
    ],
@@ -5556,7 +5556,7 @@
    "name": "chat_generate",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "读长度",
+   "doc": "",
    "calls": [
     "expf",
     "fflush",
@@ -5574,7 +5574,7 @@
    "name": "chat_mode",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "累加分母",
+   "doc": "",
    "calls": [
     "chat_generate",
     "ctx_append",
@@ -5593,7 +5593,7 @@
    "name": "ask_mode",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "提示符立即显示",
+   "doc": "",
    "calls": [
     "chat_generate",
     "ctx_append"
@@ -5606,7 +5606,7 @@
    "name": "looks_utf8",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "提示模型该它说了",
+   "doc": "",
    "calls": [
     "MultiByteToWideChar",
     "WideCharToMultiByte",
@@ -5625,7 +5625,7 @@
    "name": "arith_eval",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "非法首字节",
+   "doc": "",
    "calls": [
     "e_expr",
     "fclose",
@@ -5644,7 +5644,7 @@
    "name": "e_skip",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "把输出前导数字转成整数",
+   "doc": "",
    "calls": [],
    "line": 1310,
    "in_degree": 24
@@ -5654,7 +5654,7 @@
    "name": "e_prim",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "计数",
+   "doc": "",
    "calls": [
     "e_expr",
     "e_skip",
@@ -5668,7 +5668,7 @@
    "name": "e_pow",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "展示对错",
+   "doc": "",
    "calls": [
     "e_prim",
     "e_skip",
@@ -5682,7 +5682,7 @@
    "name": "e_term",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "三目防止除零",
+   "doc": "",
    "calls": [
     "e_pow",
     "e_skip"
@@ -5695,7 +5695,7 @@
    "name": "e_expr",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "最底层：括号、正负号、数字字面量",
+   "doc": "",
    "calls": [
     "e_skip",
     "e_term"
@@ -5708,7 +5708,7 @@
    "name": "eval_expr",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "一个字符都没吃掉，说明不是数字",
+   "doc": "",
    "calls": [
     "e_expr"
    ],
@@ -5720,7 +5720,7 @@
    "name": "gen_text",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "跳过空白",
+   "doc": "",
    "calls": [
     "expf",
     "forward",
@@ -5736,7 +5736,7 @@
    "name": "verify_chain",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "用最大 logit 做稳定归一化",
+   "doc": "",
    "calls": [
     "atof",
     "eval_expr",
@@ -5758,7 +5758,7 @@
    "name": "think_mode",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "读到换行或下一个标记",
+   "doc": "",
    "calls": [
     "gen_text",
     "memset",
@@ -5774,7 +5774,7 @@
    "name": "main",
    "file": "src/nanogpt_mla.c",
    "lang": "c",
-   "doc": "相对误差 1e-4 内算对",
+   "doc": "",
    "calls": [
     "SetConsoleOutputCP",
     "alloc_activations",
@@ -5804,7 +5804,7 @@
    "name": "die",
    "file": "src/qwen.c",
    "lang": "c",
-   "doc": "------------------------------ 小工具 ----------------------------------",
+   "doc": "",
    "calls": [
     "exit"
    ],
@@ -5816,7 +5816,7 @@
    "name": "rd",
    "file": "src/qwen.c",
    "lang": "c",
-   "doc": "------------------------------ 小工具 ----------------------------------",
+   "doc": "",
    "calls": [
     "die",
     "fread"
@@ -5829,7 +5829,7 @@
    "name": "rd_u8",
    "file": "src/qwen.c",
    "lang": "c",
-   "doc": "------------------------------ 小工具 ----------------------------------",
+   "doc": "",
    "calls": [
     "rd"
    ],
@@ -5841,7 +5841,7 @@
    "name": "rd_u16",
    "file": "src/qwen.c",
    "lang": "c",
-   "doc": "------------------------------ 小工具 ----------------------------------",
+   "doc": "",
    "calls": [
     "rd"
    ],
@@ -5853,7 +5853,7 @@
    "name": "rd_u32",
    "file": "src/qwen.c",
    "lang": "c",
-   "doc": "------------------------------ 小工具 ----------------------------------",
+   "doc": "",
    "calls": [
     "rd"
    ],
@@ -5865,7 +5865,7 @@
    "name": "rd_u64",
    "file": "src/qwen.c",
    "lang": "c",
-   "doc": "------------------------------ 小工具 ----------------------------------",
+   "doc": "",
    "calls": [
     "rd"
    ],
@@ -5877,7 +5877,7 @@
    "name": "rd_i32",
    "file": "src/qwen.c",
    "lang": "c",
-   "doc": "------------------------------ 小工具 ----------------------------------",
+   "doc": "",
    "calls": [
     "rd"
    ],
@@ -5889,7 +5889,7 @@
    "name": "rd_f32",
    "file": "src/qwen.c",
    "lang": "c",
-   "doc": "------------------------------ 小工具 ----------------------------------",
+   "doc": "",
    "calls": [
     "rd"
    ],
@@ -5913,7 +5913,7 @@
    "name": "rd_gguf_str",
    "file": "src/qwen.c",
    "lang": "c",
-   "doc": "词表",
+   "doc": "读取一个 GGUF 字符串（uint64 长度 + 内容）",
    "calls": [
     "malloc",
     "rd",
@@ -5928,7 +5928,7 @@
    "name": "read_array",
    "file": "src/qwen.c",
    "lang": "c",
-   "doc": "读取一个 GGUF 字符串（uint64 长度 + 内容）",
+   "doc": "数组：元素类型 + 数量 + 元素",
    "calls": [
     "malloc",
     "rd_gguf_str",
@@ -5999,7 +5999,7 @@
    "name": "type_block_bytes",
    "file": "src/qwen.c",
    "lang": "c",
-   "doc": "Q4_0",
+   "doc": "",
    "calls": [
     "type_name"
    ],
@@ -6011,7 +6011,7 @@
    "name": "load_gguf",
    "file": "src/qwen.c",
    "lang": "c",
-   "doc": "fp16 d + 32 int8",
+   "doc": "",
    "calls": [
     "die",
     "fclose",
@@ -6041,7 +6041,7 @@
    "name": "fp16_to_fp32",
    "file": "src/qwen.c",
    "lang": "c",
-   "doc": "一次性把整个数据区读进内存",
+   "doc": "",
    "calls": [
     "memcpy"
    ],
@@ -6053,7 +6053,7 @@
    "name": "dequant_row",
    "file": "src/qwen.c",
    "lang": "c",
-   "doc": "半精度 -> float",
+   "doc": "",
    "calls": [
     "die",
     "fp16_to_fp32",
@@ -6067,7 +6067,7 @@
    "name": "main",
    "file": "src/qwen.c",
    "lang": "c",
-   "doc": "F16",
+   "doc": "",
    "calls": [
     "SetConsoleOutputCP",
     "find_tensor",
@@ -6082,7 +6082,7 @@
    "name": "xrand",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "------------------------------ 随机数 ----------------------------------",
+   "doc": "",
    "calls": [],
    "line": 84,
    "in_degree": 21
@@ -6092,7 +6092,7 @@
    "name": "frand",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "------------------------------ 随机数 ----------------------------------",
+   "doc": "",
    "calls": [
     "xrand"
    ],
@@ -6104,7 +6104,7 @@
    "name": "nrand",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "------------------------------ 随机数 ----------------------------------",
+   "doc": "",
    "calls": [
     "_Pragma",
     "cosf",
@@ -6120,7 +6120,7 @@
    "name": "mm_nn",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "------------------------------ 矩阵乘法（累加语义）--------------------",
+   "doc": "矩阵乘法（累加语义）",
    "calls": [],
    "line": 102,
    "in_degree": 7
@@ -6150,7 +6150,7 @@
    "name": "alloc_activations",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "嵌入，即第 0 层输入",
+   "doc": "",
    "calls": [
     "calloc",
     "falloc"
@@ -6175,7 +6175,7 @@
    "name": "is_bias",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "",
+   "doc": "初始化",
    "calls": [
     "strstr"
    ],
@@ -6187,7 +6187,7 @@
    "name": "init_params",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "------------------------------ 初始化 ----------------------------------",
+   "doc": "",
    "calls": [
     "add_param",
     "is_bias",
@@ -6216,7 +6216,7 @@
    "name": "rmsnorm_bwd",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "------------------------------ RMSNorm --------------------------------",
+   "doc": "",
    "calls": [],
    "line": 229,
    "in_degree": 7
@@ -6243,7 +6243,7 @@
    "name": "loss_and_grad",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "---- 输出层 ----",
+   "doc": "",
    "calls": [
     "expf",
     "logf"
@@ -6274,7 +6274,7 @@
    "name": "grad_norm",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "嵌入梯度",
+   "doc": "",
    "calls": [
     "sqrt"
    ],
@@ -6286,7 +6286,7 @@
    "name": "adamw_step",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "------------------------------ AdamW ----------------------------------",
+   "doc": "",
    "calls": [
     "grad_norm",
     "powf",
@@ -6300,7 +6300,7 @@
    "name": "cmap_init",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "------------------------------ 语料与词表 ------------------------------",
+   "doc": "字符级：一个汉字就是一个 token，模型只能吐出完整字符，不会出乱码",
    "calls": [],
    "line": 510,
    "in_degree": 8
@@ -6310,7 +6310,7 @@
    "name": "char_id",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "id -> Unicode 码点",
+   "doc": "",
    "calls": [],
    "line": 512,
    "in_degree": 8
@@ -6320,7 +6320,7 @@
    "name": "cmap_put",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "id -> Unicode 码点",
+   "doc": "",
    "calls": [],
    "line": 518,
    "in_degree": 8
@@ -6330,7 +6330,7 @@
    "name": "u8_get",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "id -> Unicode 码点",
+   "doc": "",
    "calls": [],
    "line": 526,
    "in_degree": 8
@@ -6363,7 +6363,7 @@
    "name": "id_to_out",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "UTF-8 字符串 -> id 序列",
+   "doc": "",
    "calls": [
     "u8_put"
    ],
@@ -6375,7 +6375,7 @@
    "name": "load_corpus",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "id -> 文本字节，返回字节数",
+   "doc": "",
    "calls": [
     "char_id",
     "cmap_init",
@@ -6550,7 +6550,7 @@
    "name": "chat_mode",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "迭代 19 次得到第 20 大的值",
+   "doc": "",
    "calls": [
     "chat_generate",
     "ctx_append",
@@ -6569,7 +6569,7 @@
    "name": "ask_mode",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "chat_mode：不传 question 就是交互式；传了就是问一句答一句然后退出",
+   "doc": "",
    "calls": [
     "chat_generate",
     "ctx_append"
@@ -6582,7 +6582,7 @@
    "name": "looks_utf8",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "chat_mode：不传 question 就是交互式；传了就是问一句答一句然后退出",
+   "doc": "",
    "calls": [
     "MultiByteToWideChar",
     "WideCharToMultiByte",
@@ -6601,7 +6601,7 @@
    "name": "arith_eval",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "------------------------------ 解题模式 --------------------------------",
+   "doc": "",
    "calls": [
     "e_expr",
     "fclose",
@@ -6620,7 +6620,7 @@
    "name": "e_skip",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "====================== 算术考试（用精确计算器判分）=====================",
+   "doc": "",
    "calls": [],
    "line": 1057,
    "in_degree": 24
@@ -6630,7 +6630,7 @@
    "name": "e_prim",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "====================== 算术考试（用精确计算器判分）=====================",
+   "doc": "",
    "calls": [
     "e_expr",
     "e_skip",
@@ -6644,7 +6644,7 @@
    "name": "e_pow",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "0 一位数 1 两位数 2 乘法",
+   "doc": "",
    "calls": [
     "e_prim",
     "e_skip",
@@ -6658,7 +6658,7 @@
    "name": "e_term",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "接近贪婪解码",
+   "doc": "",
    "calls": [
     "e_pow",
     "e_skip"
@@ -6671,7 +6671,7 @@
    "name": "e_expr",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "前几题打印出来看模型到底输出了什么",
+   "doc": "",
    "calls": [
     "e_skip",
     "e_term"
@@ -6684,7 +6684,7 @@
    "name": "eval_expr",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "前几题打印出来看模型到底输出了什么",
+   "doc": "",
    "calls": [
     "e_expr"
    ],
@@ -6712,7 +6712,7 @@
    "name": "verify_chain",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "====================== 生成到缓冲区（不打印）===========================",
+   "doc": "",
    "calls": [
     "atof",
     "eval_expr",
@@ -6734,7 +6734,7 @@
    "name": "think_mode",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "====================== 逐步验算 + 投票 ================================",
+   "doc": "",
    "calls": [
     "gen_text",
     "lin_term",
@@ -6766,7 +6766,7 @@
    "name": "u8_next",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "============================ 一元一次方程 ===============================",
+   "doc": "",
    "calls": [
     "u8_prev"
    ],
@@ -6778,7 +6778,7 @@
    "name": "cn_digit",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "处理 x/2 这种除法",
+   "doc": "",
    "calls": [],
    "line": 1288,
    "in_degree": 10
@@ -6801,7 +6801,7 @@
    "name": "collect_numbers",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "======================= 中文数字与题型规则引擎 =========================",
+   "doc": "",
    "calls": [
     "cn_digit",
     "parse_cn",
@@ -6817,7 +6817,7 @@
    "name": "has",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "百分之 X ：字节序列 百(E7 99 BE) 分(E5 88 86) 之(E4 B9 8B)",
+   "doc": "",
    "calls": [
     "strstr"
    ],
@@ -6839,7 +6839,7 @@
    "name": "first_any",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "打折：形如 八折 / 七五折 / 8折 / 8.5折",
+   "doc": "",
    "calls": [],
    "line": 1419,
    "in_degree": 0
@@ -6849,7 +6849,7 @@
    "name": "max_num",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "折",
+   "doc": "",
    "calls": [],
    "line": 1423,
    "in_degree": 5
@@ -6859,7 +6859,7 @@
    "name": "emit",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "注意：这里是倒序收集",
+   "doc": "",
    "calls": [
     "eval_expr",
     "isnan",
@@ -6873,7 +6873,7 @@
    "name": "try_rules",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "八折 -> 0.8",
+   "doc": "",
    "calls": [
     "collect_numbers",
     "emit",
@@ -7037,7 +7037,7 @@
    "name": "sess_append_log",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "====================== 回复缓冲与统一应答 ================================",
+   "doc": "",
    "calls": [
     "fclose",
     "find_session",
@@ -7059,7 +7059,7 @@
    "name": "load_sessions",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "",
+   "doc": "未知话题：保证可读，不放手让模型乱说",
    "calls": [
     "_mkdir"
    ],
@@ -7071,7 +7071,7 @@
    "name": "http_send",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "未知话题：保证可读，不放手让模型乱说",
+   "doc": "",
    "calls": [
     "send",
     "snprintf",
@@ -7085,7 +7085,7 @@
    "name": "json_get",
    "file": "src/server.c",
    "lang": "c",
-   "doc": "====================== 文件操作（必须用户确认）=========================",
+   "doc": "",
    "calls": [
     "ShellExecuteA",
     "abs_path",
@@ -7140,7 +7140,7 @@
    "name": "looks_utf8",
    "file": "src/solver.c",
    "lang": "c",
-   "doc": "------------------------- 控制台编码（Windows）-------------------------",
+   "doc": "控制台编码（Windows）",
    "calls": [
     "MultiByteToWideChar",
     "WideCharToMultiByte",
@@ -7159,7 +7159,7 @@
    "name": "skipsp",
    "file": "src/solver.c",
    "lang": "c",
-   "doc": "============================ 精确算术 ===================================",
+   "doc": "",
    "calls": [],
    "line": 67,
    "in_degree": 4
@@ -7169,7 +7169,7 @@
    "name": "p_primary",
    "file": "src/solver.c",
    "lang": "c",
-   "doc": "============================ 精确算术 ===================================",
+   "doc": "",
    "calls": [
     "p_expr",
     "skipsp",
@@ -7183,7 +7183,7 @@
    "name": "p_power",
    "file": "src/solver.c",
    "lang": "c",
-   "doc": "============================ 精确算术 ===================================",
+   "doc": "",
    "calls": [
     "p_primary",
     "pow",
@@ -7197,7 +7197,7 @@
    "name": "p_term",
    "file": "src/solver.c",
    "lang": "c",
-   "doc": "百分号是后缀：80% = 0.8",
+   "doc": "",
    "calls": [
     "p_power",
     "skipsp"
@@ -7210,7 +7210,7 @@
    "name": "p_expr",
    "file": "src/solver.c",
    "lang": "c",
-   "doc": "交给方程解析器",
+   "doc": "",
    "calls": [
     "p_term",
     "skipsp"
@@ -7223,7 +7223,7 @@
    "name": "is_arith",
    "file": "src/solver.c",
    "lang": "c",
-   "doc": "交给方程解析器",
+   "doc": "",
    "calls": [
     "isdigit",
     "strchr"
@@ -7236,7 +7236,7 @@
    "name": "eval_arith",
    "file": "src/solver.c",
    "lang": "c",
-   "doc": "交给方程解析器",
+   "doc": "",
    "calls": [
     "lin_term",
     "p_expr"
@@ -7249,7 +7249,7 @@
    "name": "solve_linear",
    "file": "src/solver.c",
    "lang": "c",
-   "doc": "处理 x/2 这种除法",
+   "doc": "",
    "calls": [
     "TMAP",
     "fabs",
@@ -7265,7 +7265,7 @@
    "name": "tri",
    "file": "src/solver.c",
    "lang": "c",
-   "doc": "文档频率",
+   "doc": "",
    "calls": [],
    "line": 200,
    "in_degree": 2
@@ -7275,7 +7275,7 @@
    "name": "load_file",
    "file": "src/solver.c",
    "lang": "c",
-   "doc": "上次出现的文档号（用于每篇只计一次）",
+   "doc": "",
    "calls": [
     "fclose",
     "fopen",
@@ -7292,7 +7292,7 @@
    "name": "index_lines",
    "file": "src/solver.c",
    "lang": "c",
-   "doc": "0 用作“空桶”哨兵，单独避开",
+   "doc": "",
    "calls": [
     "malloc"
    ],
@@ -7330,7 +7330,7 @@
    "name": "query_body",
    "file": "src/solver.c",
    "lang": "c",
-   "doc": "查一个三元组的 idf，找不到返回 0",
+   "doc": "",
    "calls": [
     "gram_idf",
     "memset",
@@ -7345,7 +7345,7 @@
    "name": "u8_next",
    "file": "src/solver.c",
    "lang": "c",
-   "doc": "用长度做归一化",
+   "doc": "",
    "calls": [
     "u8_prev"
    ],
@@ -7367,7 +7367,7 @@
    "name": "parse_cn",
    "file": "src/solver.c",
    "lang": "c",
-   "doc": "六",
+   "doc": "",
    "calls": [
     "cn_digit",
     "u8_next"
@@ -7380,7 +7380,7 @@
    "name": "collect_numbers",
    "file": "src/solver.c",
    "lang": "c",
-   "doc": "千",
+   "doc": "",
    "calls": [
     "cn_digit",
     "parse_cn",
@@ -7396,7 +7396,7 @@
    "name": "has",
    "file": "src/solver.c",
    "lang": "c",
-   "doc": "汉字数字（只在后面跟单位时计入，避免误判）",
+   "doc": "",
    "calls": [
     "strstr"
    ],
@@ -7408,7 +7408,7 @@
    "name": "first_of",
    "file": "src/solver.c",
    "lang": "c",
-   "doc": "汉字数字（只在后面跟单位时计入，避免误判）",
+   "doc": "",
    "calls": [],
    "line": 461,
    "in_degree": 5
@@ -7451,7 +7451,7 @@
    "name": "try_rules",
    "file": "src/solver.c",
    "lang": "c",
-   "doc": "最大的那个数（金额识别失败时用它兜底，通常就是价格）",
+   "doc": "",
    "calls": [
     "collect_numbers",
     "emit",
@@ -7471,7 +7471,7 @@
    "name": "chat_reply",
    "file": "src/solver.c",
    "lang": "c",
-   "doc": "求和",
+   "doc": "",
    "calls": [
     "has",
     "localtime",
@@ -7531,7 +7531,7 @@
    "name": "xrand",
    "file": "src/test_answer.c",
    "lang": "c",
-   "doc": "------------------------------ 随机数 ----------------------------------",
+   "doc": "",
    "calls": [],
    "line": 67,
    "in_degree": 21
@@ -7541,7 +7541,7 @@
    "name": "frand",
    "file": "src/test_answer.c",
    "lang": "c",
-   "doc": "------------------------------ 随机数 ----------------------------------",
+   "doc": "",
    "calls": [
     "xrand"
    ],
@@ -7553,7 +7553,7 @@
    "name": "nrand",
    "file": "src/test_answer.c",
    "lang": "c",
-   "doc": "------------------------------ 随机数 ----------------------------------",
+   "doc": "",
    "calls": [
     "_Pragma",
     "cosf",
@@ -7569,7 +7569,7 @@
    "name": "mm_nn",
    "file": "src/test_answer.c",
    "lang": "c",
-   "doc": "------------------------------ 矩阵乘法（累加语义）--------------------",
+   "doc": "矩阵乘法（累加语义）",
    "calls": [],
    "line": 85,
    "in_degree": 7
@@ -7599,7 +7599,7 @@
    "name": "alloc_activations",
    "file": "src/test_answer.c",
    "lang": "c",
-   "doc": "嵌入，即第 0 层输入",
+   "doc": "",
    "calls": [
     "calloc",
     "falloc"
@@ -7624,7 +7624,7 @@
    "name": "is_bias",
    "file": "src/test_answer.c",
    "lang": "c",
-   "doc": "",
+   "doc": "初始化",
    "calls": [
     "strstr"
    ],
@@ -7636,7 +7636,7 @@
    "name": "init_params",
    "file": "src/test_answer.c",
    "lang": "c",
-   "doc": "------------------------------ 初始化 ----------------------------------",
+   "doc": "",
    "calls": [
     "add_param",
     "is_bias",
@@ -7665,7 +7665,7 @@
    "name": "rmsnorm_bwd",
    "file": "src/test_answer.c",
    "lang": "c",
-   "doc": "------------------------------ RMSNorm --------------------------------",
+   "doc": "",
    "calls": [],
    "line": 212,
    "in_degree": 7
@@ -7692,7 +7692,7 @@
    "name": "loss_and_grad",
    "file": "src/test_answer.c",
    "lang": "c",
-   "doc": "---- 输出层 ----",
+   "doc": "",
    "calls": [
     "expf",
     "logf"
@@ -7723,7 +7723,7 @@
    "name": "grad_norm",
    "file": "src/test_answer.c",
    "lang": "c",
-   "doc": "嵌入梯度",
+   "doc": "",
    "calls": [
     "sqrt"
    ],
@@ -7735,7 +7735,7 @@
    "name": "adamw_step",
    "file": "src/test_answer.c",
    "lang": "c",
-   "doc": "------------------------------ AdamW ----------------------------------",
+   "doc": "",
    "calls": [
     "grad_norm",
     "powf",
@@ -7749,7 +7749,7 @@
    "name": "load_corpus",
    "file": "src/test_answer.c",
    "lang": "c",
-   "doc": "全局梯度裁剪",
+   "doc": "语料与词表",
    "calls": [
     "fclose",
     "fopen",
@@ -7870,7 +7870,7 @@
    "name": "load_weights",
    "file": "src/test_answer.c",
    "lang": "c",
-   "doc": "------------------------------ 权重存取 --------------------------------",
+   "doc": "",
    "calls": [
     "fclose",
     "fopen",
@@ -7913,7 +7913,7 @@
    "name": "chat_mode",
    "file": "src/test_answer.c",
    "lang": "c",
-   "doc": "迭代 19 次得到第 20 大的值",
+   "doc": "",
    "calls": [
     "chat_generate",
     "ctx_append",
@@ -7932,7 +7932,7 @@
    "name": "ask_mode",
    "file": "src/test_answer.c",
    "lang": "c",
-   "doc": "chat_mode：不传 question 就是交互式；传了就是问一句答一句然后退出",
+   "doc": "",
    "calls": [
     "chat_generate",
     "ctx_append"
@@ -7964,7 +7964,7 @@
    "name": "arith_eval",
    "file": "src/test_answer.c",
    "lang": "c",
-   "doc": "------------------------------ 解题模式 --------------------------------",
+   "doc": "",
    "calls": [
     "e_expr",
     "fclose",
@@ -7983,7 +7983,7 @@
    "name": "e_skip",
    "file": "src/test_answer.c",
    "lang": "c",
-   "doc": "====================== 算术考试（用精确计算器判分）=====================",
+   "doc": "",
    "calls": [],
    "line": 919,
    "in_degree": 24
@@ -7993,7 +7993,7 @@
    "name": "e_prim",
    "file": "src/test_answer.c",
    "lang": "c",
-   "doc": "0 一位数 1 两位数 2 乘法",
+   "doc": "",
    "calls": [
     "e_expr",
     "e_skip",
@@ -8007,7 +8007,7 @@
    "name": "e_pow",
    "file": "src/test_answer.c",
    "lang": "c",
-   "doc": "接近贪婪解码",
+   "doc": "",
    "calls": [
     "e_prim",
     "e_skip",
@@ -8021,7 +8021,7 @@
    "name": "e_term",
    "file": "src/test_answer.c",
    "lang": "c",
-   "doc": "前几题打印出来看模型到底输出了什么",
+   "doc": "",
    "calls": [
     "e_pow",
     "e_skip"
@@ -8034,7 +8034,7 @@
    "name": "e_expr",
    "file": "src/test_answer.c",
    "lang": "c",
-   "doc": "前几题打印出来看模型到底输出了什么",
+   "doc": "",
    "calls": [
     "e_skip",
     "e_term"
@@ -8047,7 +8047,7 @@
    "name": "eval_expr",
    "file": "src/test_answer.c",
    "lang": "c",
-   "doc": "前几题打印出来看模型到底输出了什么",
+   "doc": "",
    "calls": [
     "e_expr"
    ],
@@ -8073,7 +8073,7 @@
    "name": "verify_chain",
    "file": "src/test_answer.c",
    "lang": "c",
-   "doc": "====================== 生成到缓冲区（不打印）===========================",
+   "doc": "",
    "calls": [
     "atof",
     "eval_expr",
@@ -8095,7 +8095,7 @@
    "name": "think_mode",
    "file": "src/test_answer.c",
    "lang": "c",
-   "doc": "====================== 逐步验算 + 投票 ================================",
+   "doc": "",
    "calls": [
     "gen_text",
     "lin_term",
@@ -8127,7 +8127,7 @@
    "name": "u8_next",
    "file": "src/test_answer.c",
    "lang": "c",
-   "doc": "============================ 一元一次方程 ===============================",
+   "doc": "",
    "calls": [
     "u8_prev"
    ],
@@ -8139,7 +8139,7 @@
    "name": "cn_digit",
    "file": "src/test_answer.c",
    "lang": "c",
-   "doc": "处理 x/2 这种除法",
+   "doc": "",
    "calls": [],
    "line": 1148,
    "in_degree": 10
@@ -8162,7 +8162,7 @@
    "name": "collect_numbers",
    "file": "src/test_answer.c",
    "lang": "c",
-   "doc": "======================= 中文数字与题型规则引擎 =========================",
+   "doc": "",
    "calls": [
     "cn_digit",
     "parse_cn",
@@ -8178,7 +8178,7 @@
    "name": "has",
    "file": "src/test_answer.c",
    "lang": "c",
-   "doc": "百分之 X ：字节序列 百(E7 99 BE) 分(E5 88 86) 之(E4 B9 8B)",
+   "doc": "",
    "calls": [
     "strstr"
    ],
@@ -8200,7 +8200,7 @@
    "name": "first_any",
    "file": "src/test_answer.c",
    "lang": "c",
-   "doc": "打折：形如 八折 / 七五折 / 8折 / 8.5折",
+   "doc": "",
    "calls": [],
    "line": 1279,
    "in_degree": 0
@@ -8210,7 +8210,7 @@
    "name": "max_num",
    "file": "src/test_answer.c",
    "lang": "c",
-   "doc": "折",
+   "doc": "",
    "calls": [],
    "line": 1284,
    "in_degree": 5
@@ -8220,7 +8220,7 @@
    "name": "emit",
    "file": "src/test_answer.c",
    "lang": "c",
-   "doc": "注意：这里是倒序收集",
+   "doc": "",
    "calls": [
     "eval_expr",
     "isnan",
@@ -8234,7 +8234,7 @@
    "name": "try_rules",
    "file": "src/test_answer.c",
    "lang": "c",
-   "doc": "七五折 -> 75 -> 0.75",
+   "doc": "",
    "calls": [
     "collect_numbers",
     "emit",
@@ -8678,7 +8678,7 @@
    "name": "enum_top",
    "file": "tools/drive_gui.c",
    "lang": "c",
-   "doc": "drive_gui.c -- 远程驱动 AI 窗口：发一句话，读出历史内容（UTF-8 输出）",
+   "doc": "",
    "calls": [
     "GetClassNameW",
     "GetWindowTextW",
@@ -8890,7 +8890,24 @@
     "sorted",
     "walk"
    ],
-   "line": 65,
+   "line": 66,
+   "in_degree": 1
+  },
+  {
+   "id": "tools/gen_call_graph.py::prev_comment",
+   "name": "prev_comment",
+   "file": "tools/gen_call_graph.py",
+   "lang": "py",
+   "doc": "返回紧贴 pos 之前的那段 /* */ 注释内容；中间若有代码则返回空串。",
+   "calls": [
+    "find",
+    "max",
+    "rfind",
+    "split",
+    "startswith",
+    "strip"
+   ],
+   "line": 90,
    "in_degree": 1
   },
   {
@@ -8911,15 +8928,16 @@
     "group",
     "len",
     "list",
-    "max",
     "open",
+    "prev_comment",
     "read",
     "set",
     "sorted",
     "start",
+    "strip",
     "sub"
    ],
-   "line": 89,
+   "line": 125,
    "in_degree": 2
   },
   {
@@ -8942,7 +8960,7 @@
     "strftime",
     "walk"
    ],
-   "line": 126,
+   "line": 165,
    "in_degree": 0
   },
   {
@@ -9069,7 +9087,7 @@
    "name": "rep",
    "file": "tools/gui_part.c",
    "lang": "c",
-   "doc": "====================== 回复缓冲与统一应答 ================================",
+   "doc": "",
    "calls": [
     "memcpy",
     "strlen"
@@ -9082,7 +9100,7 @@
    "name": "repf",
    "file": "tools/gui_part.c",
    "lang": "c",
-   "doc": "====================== 回复缓冲与统一应答 ================================",
+   "doc": "",
    "calls": [
     "rep",
     "va_end",
@@ -9097,7 +9115,7 @@
    "name": "is_arith_s",
    "file": "tools/gui_part.c",
    "lang": "c",
-   "doc": "====================== 回复缓冲与统一应答 ================================",
+   "doc": "",
    "calls": [
     "isdigit",
     "strchr"
@@ -9110,7 +9128,7 @@
    "name": "sess_append",
    "file": "tools/gui_part.c",
    "lang": "c",
-   "doc": "会话记忆：只对神经网络部分生效",
+   "doc": "",
    "calls": [
     "memcpy",
     "strlen"
@@ -9123,7 +9141,7 @@
    "name": "answer_q",
    "file": "tools/gui_part.c",
    "lang": "c",
-   "doc": "会话记忆：只对神经网络部分生效",
+   "doc": "",
    "calls": [
     "MultiByteToWideChar",
     "WideCharToMultiByte",
@@ -9147,7 +9165,7 @@
    "name": "append_history",
    "file": "tools/gui_part.c",
    "lang": "c",
-   "doc": "====================== Win32 聊天窗口 ==================================",
+   "doc": "",
    "calls": [
     "GetWindowTextLengthW",
     "SendMessageW",
@@ -9161,7 +9179,7 @@
    "name": "do_send",
    "file": "tools/gui_part.c",
    "lang": "c",
-   "doc": "",
+   "doc": "不用 swprintf：MinGW 的 %s 有 MS 语义，会把宽指针当窄串读，窗口显示乱码",
    "calls": [
     "GetWindowTextW",
     "SetWindowTextW",
@@ -9181,7 +9199,7 @@
    "name": "inp_proc",
    "file": "tools/gui_part.c",
    "lang": "c",
-   "doc": "不用 swprintf：MinGW 的 %s 有 MS 语义，会把宽指针当窄串读，窗口显示乱码",
+   "doc": "",
    "calls": [
     "CallWindowProc",
     "GetParent",
@@ -9195,7 +9213,7 @@
    "name": "wndproc",
    "file": "tools/gui_part.c",
    "lang": "c",
-   "doc": "诊断日志：把每一轮问答写到文件里（UTF-8），方便排查",
+   "doc": "",
    "calls": [
     "CreateFontW",
     "CreateWindowW",
@@ -9311,6 +9329,29 @@
     "_proxy"
    ],
    "line": 63,
+   "in_degree": 0
+  },
+  {
+   "id": "tools/make_callgraph_html.py::main",
+   "name": "main",
+   "file": "tools/make_callgraph_html.py",
+   "lang": "py",
+   "doc": "读数据 → 注入模板 → 写 HTML。",
+   "calls": [
+    "SystemExit",
+    "dirname",
+    "dumps",
+    "exists",
+    "getsize",
+    "len",
+    "load",
+    "makedirs",
+    "open",
+    "print",
+    "replace",
+    "write"
+   ],
+   "line": 338,
    "in_degree": 0
   },
   {
@@ -9714,7 +9755,7 @@
     "print",
     "serve_forever"
    ],
-   "line": 624,
+   "line": 631,
    "in_degree": 0
   },
   {
@@ -9790,6 +9831,7 @@
     "dumps",
     "encode",
     "get",
+    "isfile",
     "items",
     "join",
     "open",
@@ -9844,7 +9886,7 @@
     "urlparse",
     "write"
    ],
-   "line": 461,
+   "line": 468,
    "in_degree": 0
   },
   {
@@ -9859,7 +9901,7 @@
     "flush",
     "write"
    ],
-   "line": 562,
+   "line": 569,
    "in_degree": 13
   },
   {
@@ -9867,7 +9909,7 @@
    "name": "rep",
    "file": "tools/server_part.c",
    "lang": "c",
-   "doc": "====================== 回复缓冲与统一应答 ================================",
+   "doc": "",
    "calls": [
     "memcpy",
     "strlen"
@@ -9880,7 +9922,7 @@
    "name": "repf",
    "file": "tools/server_part.c",
    "lang": "c",
-   "doc": "====================== 回复缓冲与统一应答 ================================",
+   "doc": "",
    "calls": [
     "rep",
     "va_end",
@@ -9895,7 +9937,7 @@
    "name": "is_arith_s",
    "file": "tools/server_part.c",
    "lang": "c",
-   "doc": "====================== 回复缓冲与统一应答 ================================",
+   "doc": "",
    "calls": [
     "isdigit",
     "strchr"
@@ -9927,7 +9969,7 @@
    "name": "sess_append_log",
    "file": "tools/server_part.c",
    "lang": "c",
-   "doc": "====================== 会话管理（内存 + 落盘）===========================",
+   "doc": "",
    "calls": [
     "fclose",
     "find_session",
@@ -9949,7 +9991,7 @@
    "name": "load_sessions",
    "file": "tools/server_part.c",
    "lang": "c",
-   "doc": "落盘",
+   "doc": "",
    "calls": [
     "_mkdir"
    ],
@@ -10060,7 +10102,7 @@
    "name": "main",
    "file": "tools/swiglu_test.c",
    "lang": "c",
-   "doc": "反向：给定上游梯度 d，求 du、dg",
+   "doc": "",
    "calls": [
     "bwd",
     "fabsf",

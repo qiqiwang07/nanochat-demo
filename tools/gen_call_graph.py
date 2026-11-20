@@ -51,6 +51,7 @@ def first_sentence(text, limit=90):
         return ''
     text = text.strip()
     text = re.sub(r'^[\s\*#/]+', '', text)          # 去掉注释符号
+    text = re.sub(r'[-=*_]{4,}', ' ', text)          # 去掉装饰性横线，只留标题文字
     for line in text.split('\n'):
         line = line.strip().strip('*').strip()
         if not line:
@@ -86,6 +87,41 @@ def parse_py(path):
     return out
 
 
+def prev_comment(src, pos):
+    """返回紧贴 pos 之前的那段 /* */ 注释内容；中间若有代码则返回空串。
+
+    为什么不能取"前 600 字里最后一段注释"：那样会抓到上一个函数体内部的注释，
+    导致说明张冠李戴（比如 xrand 显示成别的函数的注释）。
+    """
+    # 从函数定义往前找最近的一段注释，允许中间隔着空白与预处理指令
+    # （很多 C 文件写成：分区注释 → #define → 函数）
+    j = src.rfind('/*', 0, max(0, pos - 4000))   # 先定位到更早的搜索起点
+    j = src.rfind('/*', 0, pos - 1)              # 最近一个注释开头
+    while j >= 0:                                # 逐个往前试
+        end = src.find('*/', j + 2)              # 该注释的结尾
+        if end < 0:                              # 注释没闭合，放弃
+            return ''
+        between = src[end + 2:pos]               # 注释与函数之间的内容
+        # 只允许空白、空注释、预处理指令；一旦出现真正的代码就说明这段注释不是给本函数的
+        ok = True
+        for line in between.split('\n'):
+            s = line.strip()
+            if not s:                            # 空行
+                continue
+            if s.startswith('#') or s.startswith('//'):   # 预处理指令或行注释
+                continue
+            ok = False                            # 出现代码
+            break
+        if ok:
+            body = src[j + 2:end]                # 去掉 /* 与 */
+            line_start = src.rfind('\n', 0, j) + 1
+            if not src[line_start:j].strip():    # 注释必须独占行首，排除行尾注释
+                return body
+            return ''                            # 行尾注释不算函数说明
+        j = src.rfind('/*', 0, j)                # 再往前找
+    return ''
+
+
 def parse_c(path):
     """解析 C：函数名、前导注释、内部调用的函数名。"""
     try:
@@ -114,10 +150,13 @@ def parse_c(path):
             if c in C_KEYWORDS or c == name:
                 continue
             calls.add(c)
-        # 取函数定义前的最后一段注释作为说明
-        head = src[max(0, m.start() - 600):m.start()]
-        cm2 = list(re.finditer(r'/\*(.*?)\*/', head, re.S))
-        doc = first_sentence(cm2[-1].group(1)) if cm2 else ''
+        # 取紧邻函数上方的那段注释；中间夹着代码就不算（避免抓到上个函数体内的注释）
+        doc = first_sentence(prev_comment(src, m.start()))
+        # 清洗后只剩空白的（纯横线）才丢弃，有文字的保留（如"矩阵乘法（累加语义）"）
+        if doc and not doc.strip(' -=*'):
+            doc = ''
+        # 不做"取函数体内第一条注释"的兜底：实测会张冠李戴（取到别的函数的注释），
+        # 宁可显示"无说明"，也不能显示错的说明。
         out.append({'name': name, 'doc': doc, 'calls': sorted(calls),
                     'line': src[:m.start()].count('\n') + 1})
     return out
