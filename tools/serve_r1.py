@@ -195,141 +195,223 @@ def strip_refs(text: str) -> str:
 
 
 def stream_llama(messages, usage_out: dict, max_tokens=None):
-    """向 llama-server 请求流式输出，逐个产出文本增量，usage 写进 usage_out。
+    """向 llama-server 请求流式输出，同时转发"思考"与"回答"。
 
-    这是生成器：调用方每拿到一个增量就可以立刻推给浏览器，
-    从而产生"打字机"效果，而不是等整段生成完。
+    为什么连思考也要推给前端：
+        nginx 默认 60 秒读超时。推理模型思考时如果前端收不到任何字节，
+        连接会被掐断（实测表现为 60.1 秒后返回空）。转发思考既保活，
+        也让用户看到模型在想什么。
     """
-    body = {  # 组装 OpenAI 兼容的请求体
-        "messages": messages,  # 对话历史（含提示词注入）
-        "max_tokens": int(max_tokens or MAX_NEW),  # 本次最多生成多少 token
-        "temperature": 0.7,  # 采样温度，0.7 兼顾稳定与自然
-        "top_p": 0.9,  # 核采样，截掉长尾避免说出离谱内容
-        "repeat_penalty": 1.05,  # 轻微惩罚重复，防止小模型复读
-        "stream": True,  # 开启流式，这是打字机效果的前提
-        "stream_options": {"include_usage": True},  # 让最后一个分片带上 token 统计
-        "stop": ["\n\n\n", "好的，我来", "嗯，我来"],  # 命中这些串就停止，防止模型自问自答
+    body = {                                       # OpenAI 兼容请求体
+        "messages": messages,
+        "max_tokens": int(max_tokens or MAX_NEW),
+        "temperature": 0.7,
+        "top_p": 0.9,
+        "repeat_penalty": 1.05,
+        "stream": True,
+        "stream_options": {"include_usage": True},
     }
-    data = json.dumps(body, ensure_ascii=False).encode("utf-8")  # 手工编码，中文不转义以省字节
-    req = urllib.request.Request(LLAMA, data=data, headers={"Content-Type": "application/json"})  # 构造请求
-    t0 = time.time()  # 记录起始时间，用于日志统计
-    started = False  # 标记是否已经开始向调用方产出内容
-    pre = ""  # 首块缓冲，用于处理可能的思考标记
-    with urllib.request.urlopen(req, timeout=900) as r:  # 900 秒超时，CPU 推理长文本可能很慢
-        for raw in r:  # 逐行读取 SSE 流
-            line = raw.decode("utf-8", "ignore").strip()  # 解码并去掉首尾空白
-            if not line.startswith("data:"):  # 只处理数据行，忽略空行和注释
-                continue  # 跳过
-            payload = line[5:].strip()  # 去掉 "data:" 前缀
-            if payload == "[DONE]":  # 流结束标记
-                break  # 退出循环
-            try:  # 分片可能因为网络截断而不完整，用 try 保护
-                j = json.loads(payload)  # 解析单个分片
-            except Exception:  # 解析失败说明该分片损坏
-                continue  # 跳过这个分片，不影响整体
-            u = j.get("usage")  # 只有最后一个分片或开启 include_usage 时才有
-            if u:  # 有统计信息就更新
-                usage_out["in"] = int(u.get("prompt_tokens") or 0)  # 输入 token 数
-                usage_out["out"] = int(u.get("completion_tokens") or 0)  # 输出 token 数
-            ch = j.get("choices") or [{}]  # 容错：异常分片可能没有 choices
-            delta = (ch[0].get("delta") or {}).get("content") or ""  # 取出本分片的文本增量
-            if not delta:  # 空增量（如首个分片只有 role 字段）直接跳过
-                continue  # 继续读下一行
-            if not started:  # 还没开始产出，先做首块处理
-                pre += delta  # 累积到缓冲区
-                if "</think>" in pre:  # 推理模型可能自带思考块
-                    pre = pre.split("</think>", 1)[1]  # 丢掉思考部分，只留答案
-                pre = pre.lstrip("\n")  # 去掉开头换行，避免气泡顶部空白
-                if pre:  # 缓冲区有内容才输出
-                    started = True  # 标记已开始
-                    yield pre  # 交出第一批文本
-                    pre = ""  # 清空缓冲
-            else:  # 已经开始了，直接转发增量
-                yield delta  # 交给调用方推给浏览器
-    dt = time.time() - t0  # 计算总耗时
-    print(f"[llama] 输出 {usage_out.get('out', 0)} token / {dt:.1f}s", flush=True)  # 记录到日志，便于对比性能
+    data = json.dumps(body, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(LLAMA, data=data, headers={"Content-Type": "application/json"})
+    t0 = time.time()
+    think, answer = [], []                          # 分别收集思考与正文
+    sent_think = sent_ans = False                   # 两个区段的标题是否已发
+    with urllib.request.urlopen(req, timeout=900) as r:
+        for raw in r:
+            line = raw.decode("utf-8", "ignore").strip()
+            if not line.startswith("data:"):
+                continue
+            payload = line[5:].strip()
+            if payload == "[DONE]":
+                break
+            try:
+                j = json.loads(payload)
+            except Exception:
+                continue
+            u = j.get("usage")
+            if u:                                   # 用量信息
+                usage_out["in"] = int(u.get("prompt_tokens") or 0)
+                usage_out["out"] = int(u.get("completion_tokens") or 0)
+            ch = j.get("choices") or [{}]
+            delta = ch[0].get("delta") or {}
+            rc = delta.get("reasoning_content") or ""   # 思考增量
+            ct = delta.get("content") or ""             # 正文增量
+            if rc:
+                if not sent_think:                  # 首次思考，发标题
+                    sent_think = True
+                    yield "【思考】\n"
+                think.append(rc)
+                yield rc                            # 实时转发，保活
+            if ct:
+                if not sent_ans:                    # 首次正文
+                    sent_ans = True
+                    if sent_think:                  # 之前有思考，才插一条分隔线；否则直接开始回答
+                        yield "\n\n---\n\n"
+                answer.append(ct)
+                yield ct
+    usage_out["think"] = "".join(think)
+    usage_out["answer"] = "".join(answer)
+    print("[llama] 思考 %d 字 / 回答 %d 字 / %.1fs"
+          % (len(usage_out["think"]), len(answer), time.time() - t0), flush=True)
 
 
 def extract_expr(text: str) -> str:
-    """从问题里挑出一个可计算的算式；挑不到返回空串。
-
-    只接受"数字 + 运算符 + 括号"的组合，避免把普通文字当公式去算。
-    """
-    best = ""  # 候选里最长的那一段最可能是用户想算的式子
-    for m in re.finditer(r"[0-9][0-9\s.()+\-*/^%]*[0-9]", text):  # 以数字开头结尾
-        cand = m.group(0).strip()  # 去掉首尾空白
-        if not any(op in cand for op in "+-*/^%"):  # 没有任何运算符就不算算式
-            continue  # 继续找
-        if len(cand) > len(best):  # 取最长的
+    """从问题里挑出一个可计算的算式；挑不到返回空串。"""
+    best = ""
+    for m in re.finditer(r"[0-9][0-9\s.()+\-*/^%]*[0-9]", text):
+        cand = m.group(0).strip()
+        if not any(op in cand for op in "+-*/^%"):
+            continue
+        if len(cand) > len(best):
             best = cand
-    return best  # 没有就返回空串
-
-
-def llama_once(messages, max_tokens=400):
-    """非流式调用一次模型，用于"先拿到完整推理链再验证"的场景。"""
-    body = {"messages": messages, "max_tokens": max_tokens, "temperature": 0.2,  # 低温让格式更稳定
-            "top_p": 0.9, "repeat_penalty": 1.05}  # 采样参数
-    data = json.dumps(body, ensure_ascii=False).encode("utf-8")  # 中文不转义
-    req = urllib.request.Request(LLAMA, data=data, headers={"Content-Type": "application/json"})  # 构造请求
-    with urllib.request.urlopen(req, timeout=600) as r:  # 600 秒超时
-        j = json.loads(r.read().decode("utf-8"))  # 解析完整响应
-    msg = j["choices"][0]["message"]  # 取回答
-    return (msg.get("content") or "").strip()  # 只要正文
-
-
-def run_chain(steps: str):
-    """调用 C 引擎验证推理链，返回 (是否全对, 可信答案文本, 完整输出)。"""
-    try:  # 子进程可能失败
-        r = subprocess.run([NP_BIN, "chain", steps], capture_output=True, timeout=20,  # 20 秒足够
-                           encoding="utf-8", errors="ignore")  # 容错解码
-        out = (r.stdout or "").strip()  # 标准输出就是验证报告
-        ok = (r.returncode == 0)  # 返回 0 表示所有步骤都通过
-        ans = ""  # 可信答案
-        for line in out.splitlines():  # 找【可信答案】那一行
-            if line.startswith("【可信答案】"):  # 命中
-                ans = line.replace("【可信答案】", "").strip()  # 取出内容
-        return (ok, ans, out)  # 三件套
-    except Exception:  # 失败
-        return (False, "", "")  # 安全返回
+    return best
 
 
 def run_reason(expr: str) -> str:
     """调用自研 C 推理引擎，返回完整的思考过程文本（失败返回空串）。"""
-    try:  # 子进程可能失败（文件缺失、超时）
-        r = subprocess.run([NP_BIN, "reason", expr], capture_output=True, timeout=20,  # 20 秒足够
-                           encoding="utf-8", errors="ignore")  # 容错解码
-        out = (r.stdout or "").strip()  # 只取标准输出
-        return out if "【结论】" in out else ""  # 必须有结论才算成功
-    except Exception:  # 任何异常都当作没有推理结果
+    try:
+        r = subprocess.run([NP_BIN, "reason", expr], capture_output=True, timeout=20,
+                           encoding="utf-8", errors="ignore")
+        out = (r.stdout or "").strip()
+        return out if "【结论】" in out else ""
+    except Exception:
         return ""
 
 
-def stream_nanogpt(prompt: str, usage_out: dict):
-    """调用自研 C 模型（nanogpt raw 模式），把输出逐字符转成文本增量。
-
-    为什么用子进程：C 模型是命令行程序，没有 HTTP 接口；
-    它每次生成一个字符就 flush，所以这里能拿到真正的流式输出。
-    """
-    cmd = [NP_BIN, "raw", NP_CORPUS, NP_WEIGHTS, prompt, str(NP_LEN)]  # 命令：只输出正文
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0)  # 无缓冲，立刻能读
-    dec = codecs.getincrementaldecoder("utf-8")("ignore")  # 增量解码器，处理被切断的多字节字符
-    n_out = 0  # 统计生成的字符数，当作 token 数展示
+def run_chain(steps: str):
+    """调用 C 引擎验证推理链，返回 (是否全对, 可信答案, 完整输出)。"""
     try:
-        while True:  # 逐字节读取
-            b = proc.stdout.read(1)  # 一次一个字节，保证不粘包
-            if not b:  # 进程结束
+        r = subprocess.run([NP_BIN, "chain", steps], capture_output=True, timeout=20,
+                           encoding="utf-8", errors="ignore")
+        out = (r.stdout or "").strip()
+        ok = (r.returncode == 0)
+        ans = ""
+        for line in out.splitlines():
+            if line.startswith("【可信答案】"):
+                ans = line.replace("【可信答案】", "").strip()
+        return (ok, ans, out)
+    except Exception:
+        return (False, "", "")
+
+
+def llama_once(messages, max_tokens=400):
+    """非流式调用一次模型，用于需要"先拿到完整文本再处理"的场景。"""
+    body = {"messages": messages, "max_tokens": max_tokens, "temperature": 0.2,
+            "top_p": 0.9, "repeat_penalty": 1.05}
+    data = json.dumps(body, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(LLAMA, data=data, headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=600) as r:
+        j = json.loads(r.read().decode("utf-8"))
+    msg = j["choices"][0]["message"]
+    return ((msg.get("content") or "").strip()
+            or (msg.get("reasoning_content") or "").strip())
+
+
+def stream_nanogpt(prompt: str, usage_out: dict):
+    """调用自研 C 模型（raw 模式），把输出逐字符转成文本增量。"""
+    cmd = [NP_BIN, "raw", NP_CORPUS, NP_WEIGHTS, prompt, str(NP_LEN)]
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0)
+    dec = codecs.getincrementaldecoder("utf-8")("ignore")
+    n_out = 0
+    try:
+        while True:
+            b = proc.stdout.read(1)
+            if not b:
                 break
-            s = dec.decode(b)  # 解码（可能返回空串，表示字符还没凑齐）
+            s = dec.decode(b)
             if s:
-                n_out += len(s)  # 计数
-                yield s  # 交给上层推给浏览器
+                n_out += len(s)
+                yield s
     finally:
         try:
-            proc.wait(timeout=5)  # 等进程退出，避免僵尸进程
+            proc.wait(timeout=5)
         except Exception:
-            proc.kill()  # 超时就强杀
-    usage_out["in"] = len(prompt)  # 粗略统计输入长度
-    usage_out["out"] = n_out  # 输出字符数
+            proc.kill()
+    usage_out["in"] = len(prompt)
+    usage_out["out"] = n_out
+
+
+def key_terms(text: str) -> list:
+    """从问题里抽出实词片段，用于校验检索结果是否真的相关。"""
+    s = text
+    for w in ('什么是', '什么叫', '是什么', '请问', '解释一下', '简单说明', '一句话',
+              '的作者是谁', '的作者', '是谁', '多少', '有哪些', '都有谁', '怎么样',
+              '的', '是', '请', '吗', '呢', '？', '?', '。'):
+        s = s.replace(w, ' ')
+    out = []
+    for seg in s.split():
+        seg = seg.strip('《》「」“”"\'()（）')
+        if len(seg) >= 2:
+            out.append(seg)
+    return out
+
+
+def lookup_answer(text: str) -> str:
+    """从知识库挑一段原文回答；必须真含关键词，否则返回空交给模型。"""
+    terms = key_terms(text)
+    if not terms:
+        return ''
+    hits = retrieve(text, 3)
+    for h in hits:
+        pos = -1
+        for term in terms:
+            pos = h.find(term)
+            if pos >= 0:
+                break
+        if pos < 0:
+            continue
+        best_para = ''
+        for para in h.split('\n'):
+            para = para.strip()
+            if not para:
+                continue
+            for term in terms:
+                if term in para and len(para) > len(best_para):
+                    best_para = para
+                    break
+        if best_para:
+            if len(best_para) > 400:
+                cut = best_para.rfind('。', 0, 400)
+                best_para = best_para[:cut + 1] if cut > 80 else best_para[:400]
+            return '【知识库检索】\n' + best_para
+        left = max(0, pos - 120)
+        right = min(len(h), pos + 280)
+        body = h[left:right].strip()
+        cut = max(body.rfind('。'), body.rfind('\n'))
+        if cut > 60:
+            body = body[:cut + 1]
+        return '【知识库检索】\n' + body
+    return ''
+
+
+def classify(text: str) -> str:
+    """判断题型：calc（纯算式）/ lookup（事实查询）/ think（需要推理或创作）。
+
+    实测依据：
+      - 算式题交 C 引擎，毫秒级且绝对准确
+      - 事实题直接检索，比 8B 模型思考快 20 倍
+      - 生成/推理题必须走模型，否则会拿无关原文糊弄
+    """
+    s = text.strip()
+    cjk = sum(1 for ch in s if '\u4e00' <= ch <= '\u9fff')
+    if extract_expr(s) and cjk <= 6:
+        return 'calc'
+
+    # 问候语：直接回应，别浪费模型算力，也别让 3B 模型把"你好"当知识题乱编
+    greetings = ('你好', '您好', '在吗', 'hi', 'hello', '嗨', '哈喽', '谢谢', '多谢')
+    if len(s) <= 12 and any(s.lower().startswith(g) for g in greetings):
+        return 'greet'
+
+    think_keys = ('写', '代码', '函数', '程序', '实现', '算法', '编程', '作文', '议论文',
+                  '记叙文', '散文', '诗', '为什么', '证明', '推导', '分析', '比较',
+                  '评价', '设计', '优化', '如何', '怎样', '步骤', '计算', '求')
+    if any(k in s for k in think_keys):
+        return 'think'
+    lookup_heads = ('什么是', '什么叫', '是什么', '谁是', '的作者', '的作者是谁',
+                    '多少', '几位', '哪一年', '解释一下', '定义')
+    if any(s.startswith(h) or h in s for h in lookup_heads):
+        return 'lookup'
+    return 'think'
 
 
 def load_sessions() -> None:
@@ -504,7 +586,16 @@ class Handler(BaseHTTPRequestHandler):
             math_hits = retrieve_olympiad(text, 1)  # 先判断是不是数学题，数学题才检索题库
             hits = retrieve(text, 1)  # 只取 1 段：片段越多预填充越慢，首字延迟越高
             style_hits = retrieve("好词好句 优美句子 名言警句 开头 结尾 排比 描写", 1) if is_essay else []  # 写作任务额外取一段素材
+            route = classify(text) if BACKEND != "nanogpt" else "think"  # 自研模型不做路由
+
+
             msgs = list(s["messages"])  # 复制一份对话历史，避免改动原始记录
+
+            if route == 'think' and BACKEND != "nanogpt":
+                # 限制思考长度：8B 推理模型对简单问题也会想几千字，必须用提示词压住
+                msgs = [{"role": "system", "content":
+                         "你是简洁的中文助手。回答前先在内部简要思考，思考不超过 100 字，"
+                         "然后直接给出答案。不要复述题目，不要写“好的”“让我想想”。"}] + msgs
             brief = ("回答要详实自然，像跟朋友解释一样：把内容讲清楚，可以举例。"  # 只提要求不列结构，避免被照抄成小标题
                      "篇幅 300-600 字。"  # 控制篇幅
                      "直接给内容，不要写“先说结论/解释为什么/补充要点”这类格式说明，"  # 明确禁止复述提示词
@@ -549,16 +640,19 @@ class Handler(BaseHTTPRequestHandler):
                             "不要提及“相似题/参考/资料”这些字眼。\n\n"  # 禁止暴露参考来源
                             + refs + "\n\n【需要解答的题目】\n" + text)  # 拼上真正要答的题目
                 msgs = s["messages"][:-1] + [{"role": "user", "content": grounded}]  # 用注入后的提示替换最后一条用户消息
-            elif hits:  # 不是数学题但有教材片段：注入背景材料
-                ctx = "\n\n".join(h[:200] for h in hits)  # 每段截到 200 字，约 130 token：预填充是首字延迟的主因，上下文越短越快
+            elif hits and any(t in hits[0] for t in key_terms(text)):  # 片段必须真含关键词才注入
+                # 3B 小模型很容易被无关材料带偏（问"素数"却照着"Lp 范数"往下编），所以加校验
+                ctx = "\n\n".join(h[:200] for h in hits)  # 每段截到 200 字，控制预填充耗时
                 grounded = ("以下是一些参考材料，请据此回答。不要说明内容来自哪里，"  # 提示模型别说出处
                             "不要提资料、教材或书名。" + brief + "\n\n" + ctx + "\n\n问题：" + text)  # 材料 + 要求 + 问题
                 msgs = s["messages"][:-1] + [{"role": "user", "content": grounded}]  # 同样替换最后一条
-            else:  # 都没有：直接回答
+            else:  # 检索没命中，或片段不相关：直接回答
                 msgs = s["messages"][:-1] + [{"role": "user", "content": text + "\n\n" + brief}]  # 只加回答要求
             ref_count = len(math_hits) + (0 if math_hits else len(hits)) + len(style_hits)  # 统计参考了多少条，前端可展示
             if not is_essay and not is_code:  # 写作与编程分支已自行设过额度，其余按题目类型给
                 req_max = max(MAX_NEW, 3000) if math_hits else MAX_NEW  # 数学题解答长，给更大额度
+            if route == 'think' and not math_hits and not is_essay and not is_code:
+                req_max = min(req_max, 900)  # 思考 + 正文的总额度，防止无限扩写
             self.send_response(200)  # 开始流式响应
             self.send_header("Content-Type", "text/event-stream; charset=utf-8")  # SSE 类型
             self.send_header("Cache-Control", "no-store")  # 流式内容不能缓存
@@ -570,11 +664,31 @@ class Handler(BaseHTTPRequestHandler):
                 """把字典编码成 SSE 帧并立即刷新，保证浏览器实时收到。"""
                 self.wfile.write(b"data: " + json.dumps(obj, ensure_ascii=False).encode() + b"\n\n")  # SSE 帧格式固定
                 self.wfile.flush()  # 强制刷出，否则会攒在缓冲区
-            # ---- 推理链验证流程 ----
-            # 让模型给出分步推理，每一步都用 C 引擎重算；错的那一步反馈回去让它重写。
-            chain_answer = ""  # 最终要展示给用户的文本
-            expr = extract_expr(text)  # 先看问题里有没有可算的算式
-            if expr and BACKEND != "nanogpt":  # 自研模型不会写推理链，跳过这条路径
+            # ---- 先快速判断题型，再决定要不要让模型思考 ----
+            chain_answer = ""                         # 不走模型的直接答案
+            expr = extract_expr(text)                 # 提取算式
+
+
+            if route == 'greet':                      # 问候语：直接回应，不调模型
+                chain_answer = ('你好！我是这个系统的 AI 助手。\n\n'
+                                '我可以：\n'
+                                '- 精确计算：直接给算式，我用程序算，不会算错\n'
+                                '- 查知识库：数学、文学、编程\n'
+                                '- 写作文、写代码、解释概念\n\n'
+                                '直接说你想问什么就行。')
+            elif route == 'calc' and expr:            # 一级：纯算式，C 引擎毫秒级出结果
+                rep = run_reason(expr)                # 分解 + 逐步求值 + 自检
+                if rep:
+                    body = rep[rep.find('【思考过程】'):] if '【思考过程】' in rep else rep
+                    chain_answer = '【精确计算】\n问题：' + expr + '\n' + body
+                    expr = ''                         # 跳过后续模型链路
+            elif route == 'lookup':                   # 二级：事实题，直接查知识库
+                got = lookup_answer(text)             # 检索最相关原文
+                if got:
+                    chain_answer = got                # 直出，不调用模型
+                    expr = ''
+
+            if expr and route == 'think' and BACKEND != "nanogpt":  # 三级：需要思考的题交给模型
                 fmt = ("只输出计算步骤，不要任何解释。每步格式严格为 算式=结果，用分号分隔，"
                        "最后一步的结果就是答案。例如：3+5=8;8*2=16")  # 强约束格式
                 try:  # 模型调用可能失败
@@ -614,7 +728,8 @@ class Handler(BaseHTTPRequestHandler):
                         emit({"delta": delta})  # 立刻推给浏览器
             except Exception as e:  # 记录错误到对话里，用户能看到原因
                 emit({"delta": "\n[后端出错：%s]" % e})  # 以文本形式回传
-            ans = strip_refs("".join(acc)) or "（模型没有给出答案）"  # 清洗出处措辞并兜底
+            raw_ans = usage.get("answer") or usage.get("think") or "".join(acc)  # 优先正文，其次思考
+            ans = strip_refs(raw_ans) or "（模型没有给出答案）"  # 清洗出处措辞并兜底
             s["messages"].append({"role": "assistant", "content": ans})  # 记录助手回答
             save_session(sid)  # 落盘
             emit({"session": sid, "refs": ref_count,  # 最后一帧带上会话 ID 和引用数
