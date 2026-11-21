@@ -397,10 +397,19 @@
   .toolbar {
     display: flex;
     align-items: center;
-    justify-content: flex-end;
+    justify-content: space-between;   /* 模式在左，发送在右 */
     gap: 8px;
     margin-top: 6px;
   }
+  /* 模式切换：简单 / 思考 */
+  .modes { display: flex; gap: 4px; background: var(--code-bg); border-radius: 8px; padding: 2px; }
+  .mode {
+    border: none; background: transparent; cursor: pointer;
+    font-size: 12.5px; padding: 4px 12px; border-radius: 6px;
+    color: var(--text-2); font-family: inherit; transition: all .15s;
+  }
+  .mode:hover { color: var(--text); }
+  .mode.on { background: var(--bg); color: var(--accent); font-weight: 500; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
   #send {
     width: 32px; height: 32px;
     border: none;
@@ -495,7 +504,7 @@
         <path d="M3 6h18M3 12h18M3 18h18"/>
       </svg>
     </button>
-    <div class="title">AI 助手 <span class="badge">DeepSeek-R1</span></div>
+    <div class="title">AI 助手 <span class="badge">本地模型</span></div>
     <div class="spacer"></div>
   </header>
 
@@ -512,6 +521,10 @@
       <div id="box">
         <textarea id="inp" rows="1" placeholder="给 AI 助手发送消息"></textarea>
         <div class="toolbar">
+          <div class="modes">
+            <button class="mode on" data-mode="simple" title="用小模型，通常几秒到几十秒">简单</button>
+            <button class="mode" data-mode="think" title="用推理模型，先分析再回答，可能要几分钟">思考</button>
+          </div>
           <button id="send" disabled>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
@@ -544,6 +557,7 @@ const side = document.getElementById('side');              // 左侧栏（可折
 const hdr = document.getElementById('hdr');                // 顶栏（滚动时加分隔线）
 let current = null;                                        // 当前会话 ID，null 表示还没建
 let busy = false;                                          // 是否正在等回答，防止重复发送
+let mode = 'simple';                                      // 当前模式：simple 简单 / think 思考
 
 /* ---------------- 渲染 ---------------- */
 
@@ -865,7 +879,7 @@ async function ask(text) {
     const resp = await fetch('/chat', {                    // POST 发起对话
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },     // 告诉服务端是 JSON
-      body: JSON.stringify({ text, session: current || '' })  // 带上会话 ID，空串表示新建
+      body: JSON.stringify({ text, session: current || '', mode: mode })  // 带上模式  // 带上会话 ID，空串表示新建
     });
     if (!resp.ok || !resp.body) throw new Error('bad response');  // 服务端异常或没有流
     const reader = resp.body.getReader();                  // 拿到可读流读取器
@@ -949,6 +963,17 @@ inp.addEventListener('keydown', e => {
 });
 
 sendBtn.addEventListener('click', () => ask(inp.value));   // 点击发送
+
+/* 模式切换 */
+document.querySelectorAll('.mode').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.mode').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    mode = btn.dataset.mode;
+    document.querySelector('.hint').textContent =
+      mode === 'think' ? '思考模式：会先分析再回答，可能要几分钟' : '内容由 AI 生成，请仔细甄别';
+  });
+});
 
 document.getElementById('newchat').addEventListener('click', newChat);  // 新对话按钮
 

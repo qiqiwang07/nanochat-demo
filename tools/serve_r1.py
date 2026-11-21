@@ -31,7 +31,8 @@ SESS_DIR = os.path.join(HERE, "sessions")  # 会话记录目录，放在脚本�
 CORPUS = os.path.join(HERE, "corpus.txt")  # 教材语料文件，缺失时检索自动降级为不用教材
 OLYMPIAD = os.path.join(HERE, "olympiad_index.json")  # 奥数题库索引，含题目与标准解答
 
-LLAMA = "http://127.0.0.1:8080/v1/chat/completions"  # 默认后端地址，可通过 --llama 覆盖
+LLAMA = "http://127.0.0.1:8080/v1/chat/completions"  # 简单模式：小模型，快
+LLAMA_THINK = "http://127.0.0.1:8081/v1/chat/completions"  # 思考模式：推理模型，慢但会分析
 BACKEND = "llama"  # 后端类型：llama（外部模型）或 nanogpt（自研 C 模型）
 NP_BIN = os.path.join(HERE, "nanogpt")  # 自研模型可执行文件路径
 NP_CORPUS = CORPUS  # 自研模型用的语料（决定字符表）
@@ -194,8 +195,10 @@ def strip_refs(text: str) -> str:
     return re.sub(r"\n{3,}", "\n\n", out).strip()  # 压缩多余空行并去首尾空白
 
 
-def stream_llama(messages, usage_out: dict, max_tokens=None):
+def stream_llama(messages, usage_out: dict, max_tokens=None, url=None):
     """向 llama-server 请求流式输出，同时转发"思考"与"回答"。
+
+    url 为空时用默认（简单模式）模型；思考模式传 8081 的地址。
 
     为什么连思考也要推给前端：
         nginx 默认 60 秒读超时。推理模型思考时如果前端收不到任何字节，
@@ -212,7 +215,8 @@ def stream_llama(messages, usage_out: dict, max_tokens=None):
         "stream_options": {"include_usage": True},
     }
     data = json.dumps(body, ensure_ascii=False).encode("utf-8")
-    req = urllib.request.Request(LLAMA, data=data, headers={"Content-Type": "application/json"})
+    target = url or LLAMA                              # 简单模式用默认地址，思考模式用 8081
+    req = urllib.request.Request(target, data=data, headers={"Content-Type": "application/json"})
     t0 = time.time()
     think, answer = [], []                          # 分别收集思考与正文
     sent_think = sent_ans = False                   # 两个区段的标题是否已发
@@ -564,6 +568,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send(json.dumps({"id": sid}).encode())  # 返回新 ID
         elif u.path == "/chat":  # 核心对话接口
             text = (body.get("text") or "").strip()  # 用户问题，去掉首尾空白
+            mode = (body.get("mode") or "simple").strip()  # 模式：simple 简单 / think 思考
+            model_url = LLAMA_THINK if mode == "think" else LLAMA  # 按模式选模型
             sid = body.get("session") or ""  # 客户端传来的会话 ID
             if sid not in sessions:  # 没带或带了个不存在的 ID
                 sid = new_sid()  # 新建一个，避免把消息丢进不存在的会话
@@ -591,11 +597,11 @@ class Handler(BaseHTTPRequestHandler):
 
             msgs = list(s["messages"])  # 复制一份对话历史，避免改动原始记录
 
-            if route == 'think' and BACKEND != "nanogpt":
-                # 限制思考长度：8B 推理模型对简单问题也会想几千字，必须用提示词压住
+            if route == 'think' and mode == 'simple' and BACKEND != "nanogpt":
+                # 简单模式：小模型，要求直接给结论，控制篇幅
                 msgs = [{"role": "system", "content":
-                         "你是简洁的中文助手。回答前先在内部简要思考，思考不超过 100 字，"
-                         "然后直接给出答案。不要复述题目，不要写“好的”“让我想想”。"}] + msgs
+                         "你是简洁的中文助手。直接给出答案，控制在 200 字以内，"
+                         "不要长篇铺陈，不要复述题目。"}] + msgs
             brief = ("回答要详实自然，像跟朋友解释一样：把内容讲清楚，可以举例。"  # 只提要求不列结构，避免被照抄成小标题
                      "篇幅 300-600 字。"  # 控制篇幅
                      "直接给内容，不要写“先说结论/解释为什么/补充要点”这类格式说明，"  # 明确禁止复述提示词
@@ -652,7 +658,7 @@ class Handler(BaseHTTPRequestHandler):
             if not is_essay and not is_code:  # 写作与编程分支已自行设过额度，其余按题目类型给
                 req_max = max(MAX_NEW, 3000) if math_hits else MAX_NEW  # 数学题解答长，给更大额度
             if route == 'think' and not math_hits and not is_essay and not is_code:
-                req_max = min(req_max, 900)  # 思考 + 正文的总额度，防止无限扩写
+                req_max = min(req_max, 700) if mode == 'simple' else 2200  # 简单模式收窄，思考模式放宽
             self.send_response(200)  # 开始流式响应
             self.send_header("Content-Type", "text/event-stream; charset=utf-8")  # SSE 类型
             self.send_header("Cache-Control", "no-store")  # 流式内容不能缓存
@@ -723,7 +729,7 @@ class Handler(BaseHTTPRequestHandler):
                         acc.append(delta)  # 累积
                         emit({"delta": delta})  # 立刻推给浏览器
                 else:  # 外部模型
-                    for delta in stream_llama(msgs, usage, req_max):  # 逐个增量
+                    for delta in stream_llama(msgs, usage, req_max, model_url):  # 逐个增量（按模式选模型）
                         acc.append(delta)  # 累积
                         emit({"delta": delta})  # 立刻推给浏览器
             except Exception as e:  # 记录错误到对话里，用户能看到原因
