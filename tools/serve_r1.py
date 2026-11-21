@@ -21,6 +21,7 @@ import subprocess  # 调用自研的 nanogpt 可执行文件
 import codecs  # 增量解码：C 模型逐字节输出，需要拼成完整 UTF-8 字符
 import threading  # 线程锁，保护 sessions 字典的并发写
 import time  # 计时（统计生成耗时）与生成会话 ID
+import urllib.parse  # 联网搜索时给关键词做 URL 编码
 import urllib.request  # 向 llama-server 发 HTTP 请求（标准库，无需第三方依赖）
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer  # 内置 HTTP 服务，线程模型支持并发
 from urllib.parse import urlparse, parse_qs  # 解析 URL 路径与查询参数
@@ -388,6 +389,88 @@ def lookup_answer(text: str) -> str:
     return ''
 
 
+def web_search(query: str, n: int = 4):
+    """用必应中文搜索，返回 [(标题, 链接, 摘要)]；失败返回空列表。
+
+    为什么用必应：服务器在国内，Google / DuckDuckGo / 维基都不通，
+    实测百度与必应中国可访问，必应的 HTML 结构也更好解析。
+    """
+    try:
+        url = 'https://cn.bing.com/search?q=' + urllib.parse.quote(query) + '&setlang=zh-CN&count=10'
+        req = urllib.request.Request(url, headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                          '(KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+            'Accept-Language': 'zh-CN,zh;q=0.9'})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            html = r.read().decode('utf-8', 'ignore')
+    except Exception as e:
+        print('[web] 搜索失败:', e, flush=True)
+        return []
+    out = []
+    for block in re.findall(r'<li class="b_algo".*?</li>', html, re.S):
+        m = re.search(r'<h2[^>]*>.*?<a[^>]*href="([^"]+)"[^>]*>(.*?)</a>', block, re.S)
+        if not m:
+            continue
+        link = m.group(1)
+        title = re.sub(r'<[^>]+>', '', m.group(2)).strip()
+        sm = re.search(r'<p[^>]*>(.*?)</p>', block, re.S)
+        snippet = re.sub(r'<[^>]+>', '', sm.group(1)).strip() if sm else ''
+        snippet = snippet.replace('&ensp;', ' ').replace('&#0183;', '·')
+        if title and snippet:
+            out.append((title, link, snippet))
+        if len(out) >= n:
+            break
+    return out
+
+
+def fetch_page(url: str, limit: int = 700) -> str:
+    """抓一个网页并抽出正文文本（去掉脚本、样式、标签）。失败返回空串。"""
+    try:
+        req = urllib.request.Request(url, headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                          '(KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+            'Accept-Language': 'zh-CN,zh;q=0.9'})
+        with urllib.request.urlopen(req, timeout=15) as r:
+            raw = r.read(400000)                      # 最多读 400KB，防止大页面拖死
+        html = raw.decode('utf-8', 'ignore')
+    except Exception:
+        return ''
+    # 去掉脚本、样式、注释
+    html = re.sub(r'<script[\s\S]*?</script>', ' ', html, flags=re.I)
+    html = re.sub(r'<style[\s\S]*?</style>', ' ', html, flags=re.I)
+    html = re.sub(r'<!--[\s\S]*?-->', ' ', html)
+    # 段落优先：只保留 <p> 里的文字，通常就是正文
+    paras = re.findall(r'<p[^>]*>(.*?)</p>', html, re.S)
+    text = ' '.join(re.sub(r'<[^>]+>', '', p) for p in paras)
+    if len(text) < 80:                                # 没有 <p> 就退回全文本
+        text = re.sub(r'<[^>]+>', ' ', html)
+    text = re.sub(r'&nbsp;|&ensp;|&#0183;', ' ', text)
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text[:limit]
+
+
+def web_grounded(query: str, results) -> str:
+    """把搜索结果拼成给模型的材料；顺手抓前两条的正文，信息更实。"""
+    parts = []
+    for i, (title, link, snippet) in enumerate(results, 1):
+        body = fetch_page(link) if i <= 2 else ''      # 只抓前两条，控制耗时
+        detail = body if len(body) > len(snippet) else snippet
+        parts.append('【资料%d】%s\n%s' % (i, title, detail[:600]))
+    return ('以下是刚从网上搜到的资料，请据此回答。\n'
+            '要求：结合资料给准确回答；资料没提到的不要编造，直接说没查到。\n\n'
+            + '\n\n'.join(parts) + '\n\n用户问题：' + query)
+
+
+def format_sources(results) -> str:
+    """回答末尾附来源列表。"""
+    if not results:
+        return ''
+    lines = ['', '', '---', '**来源**']
+    for i, (title, link, _) in enumerate(results, 1):
+        lines.append('%d. [%s](%s)' % (i, title[:50], link))
+    return '\n'.join(lines)
+
+
 def classify(text: str) -> str:
     """判断题型：calc（纯算式）/ lookup（事实查询）/ think（需要推理或创作）。
 
@@ -411,6 +494,12 @@ def classify(text: str) -> str:
                   '评价', '设计', '优化', '如何', '怎样', '步骤', '计算', '求')
     if any(k in s for k in think_keys):
         return 'think'
+    # 联网意图：时效性强、必须查外部信息、或明确要求上网查
+    web_keys = ('最新', '今天', '现在', '新闻', '最近', '多少钱', '官网', '查一下', '搜一下',
+                '上网', '网上', '股价', '天气', '比分', '发布', '几号')
+    if any(k in s for k in web_keys):
+        return 'web'
+
     lookup_heads = ('什么是', '什么叫', '是什么', '谁是', '的作者', '的作者是谁',
                     '多少', '几位', '哪一年', '解释一下', '定义')
     if any(s.startswith(h) or h in s for h in lookup_heads):
@@ -672,6 +761,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.flush()  # 强制刷出，否则会攒在缓冲区
             # ---- 先快速判断题型，再决定要不要让模型思考 ----
             chain_answer = ""                         # 不走模型的直接答案
+            web_sources = []                          # 联网来源，回答完附在末尾
             expr = extract_expr(text)                 # 提取算式
 
 
@@ -688,6 +778,14 @@ class Handler(BaseHTTPRequestHandler):
                     body = rep[rep.find('【思考过程】'):] if '【思考过程】' in rep else rep
                     chain_answer = '【精确计算】\n问题：' + expr + '\n' + body
                     expr = ''                         # 跳过后续模型链路
+            elif route == 'web' and BACKEND != "nanogpt":  # 联网：先搜，再让模型据此回答
+                results = web_search(text)                 # 必应中文搜索
+                if results:
+                    msgs = [{"role": "user", "content": web_grounded(text, results)}]
+                    web_sources = results                  # 回答后附来源
+                    req_max = 800 if mode == 'simple' else 1500
+                else:                                      # 没搜到就照常回答
+                    msgs = s["messages"][:-1] + [{"role": "user", "content": text + "\n" + brief}]
             elif route == 'lookup':                   # 二级：事实题，直接查知识库
                 got = lookup_answer(text)             # 检索最相关原文
                 if got:
@@ -736,6 +834,10 @@ class Handler(BaseHTTPRequestHandler):
                 emit({"delta": "\n[后端出错：%s]" % e})  # 以文本形式回传
             raw_ans = usage.get("answer") or usage.get("think") or "".join(acc)  # 优先正文，其次思考
             ans = strip_refs(raw_ans) or "（模型没有给出答案）"  # 清洗出处措辞并兜底
+            if web_sources:                              # 联网过就把来源发出去
+                src = format_sources(web_sources)
+                emit({"delta": src})
+                acc.append(src)
             s["messages"].append({"role": "assistant", "content": ans})  # 记录助手回答
             save_session(sid)  # 落盘
             emit({"session": sid, "refs": ref_count,  # 最后一帧带上会话 ID 和引用数
