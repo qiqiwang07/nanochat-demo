@@ -60,7 +60,7 @@ typedef struct {
     float *p, *g, *m, *v;    /* 数值 / 梯度 / AdamW 一阶、二阶动量 */
 } Param;
 
-static Param params[160];    /* 静态数组而非链表：参数总量在编译期可估，省掉指针开销 */
+static Param params[512];   /* 容量按 50 层预留：每层 10 个张量 + 4 个全局 */    /* 静态数组而非链表：参数总量在编译期可估，省掉指针开销 */
 static int   nparams = 0;    /* 当前已注册的参数个数 */
 
 static float *falloc(int n) {
@@ -1846,6 +1846,8 @@ int main(int argc, char **argv) {
             return 1;
         }
         if (load_weights(argv[3]) != 0) return 1;  /* 断点续训必须能加载 */
+        if (argc > 6) { B = atoi(argv[6]); if (B < 1) B = 1; BT = B * T; }  /* 可选 batch */
+        if (argc > 5) g_ckpt_path = argv[5];       /* 有输出路径就每 500 步存一次 */
         train(atoi(argv[4]));                      /* 继续训练指定步数 */
         generate("\nThe ", 400);                   /* 训练后立刻生成一段，检查效果 */
         if (argc > 5) save_weights(argv[5]);       /* 给了路径就保存 */

@@ -523,7 +523,7 @@
         <div class="toolbar">
           <div class="modes">
             <button class="mode on" data-mode="simple" title="用小模型，通常几秒到几十秒">简单</button>
-            <button class="mode" data-mode="think" title="用推理模型，先分析再回答，可能要几分钟">思考</button>
+            <button class="mode" data-mode="think" title="用自己训练的 C 模型（136 万参数），只能续写文本">自研</button>
           </div>
           <button id="send" disabled>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -971,7 +971,7 @@ document.querySelectorAll('.mode').forEach(btn => {
     btn.classList.add('on');
     mode = btn.dataset.mode;
     document.querySelector('.hint').textContent =
-      mode === 'think' ? '思考模式：会先分析再回答，可能要几分钟' : '内容由 AI 生成，请仔细甄别';
+      mode === 'think' ? '自研模式：使用自己训练的 C 模型，只能续写文字，不保证答对' : '内容由 AI 生成，请仔细甄别';
   });
 });
 

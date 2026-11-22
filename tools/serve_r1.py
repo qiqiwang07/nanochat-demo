@@ -28,7 +28,8 @@ from urllib.parse import urlparse, parse_qs  # 解析 URL 路径与查询参数
 
 HERE = os.path.dirname(os.path.abspath(__file__))  # 本文件所在目录，兼容 Windows 与 Linux 两种路径分隔符
 BIN_DIR = HERE  # 静态文件（chat.html）与脚本同目录，方便整体拷贝部署
-SESS_DIR = os.path.join(HERE, "sessions")  # 会话记录目录，放在脚本同级，避免依赖外部绝对路径
+SESS_DIR = os.path.join(HERE, "sessions")  # 会话记录
+THINK_DIR = os.path.join(HERE, "thinking")  # 思考过程落盘目录  # 会话记录目录，放在脚本同级，避免依赖外部绝对路径
 CORPUS = os.path.join(HERE, "corpus.txt")  # 教材语料文件，缺失时检索自动降级为不用教材
 OLYMPIAD = os.path.join(HERE, "olympiad_index.json")  # 奥数题库索引，含题目与标准解答
 
@@ -36,7 +37,7 @@ LLAMA = "http://127.0.0.1:8080/v1/chat/completions"  # 简单模式：小模型�
 LLAMA_THINK = "http://127.0.0.1:8081/v1/chat/completions"  # 思考模式：推理模型，慢但会分析
 BACKEND = "llama"  # 后端类型：llama（外部模型）或 nanogpt（自研 C 模型）
 NP_BIN = os.path.join(HERE, "nanogpt")  # 自研模型可执行文件路径
-NP_CORPUS = CORPUS  # 自研模型用的语料（决定字符表）
+NP_CORPUS = os.path.join(HERE, "corpus_self.txt")  # 自研模型专用语料：必须与训练时一致，否则字符表对不上
 NP_WEIGHTS = os.path.join(HERE, "selfmade.bin")  # 自研模型权重
 NP_LEN = 260  # 自研模型单次生成多少个字符
 MAX_NEW = 800  # 默认单次最多生成多少 token，可通过 --max-new 覆盖
@@ -507,6 +508,34 @@ def classify(text: str) -> str:
     return 'think'
 
 
+def save_thinking(sid: str, question: str, think: str, answer: str,
+                  usage: dict, sources=None) -> str:
+    """把一次问答的完整思考过程写成 markdown，返回文件路径。
+
+    为什么单独落盘：思考过程很有价值（复盘、审计、教学），
+    但它太长，不适合塞进会话记录里，所以单独存。
+    """
+    os.makedirs(THINK_DIR, exist_ok=True)
+    ts = time.strftime('%Y%m%d_%H%M%S')
+    path = os.path.join(THINK_DIR, '%s_%s.md' % (ts, sid or 'anon'))
+    lines = ['# 问题', '', question or '（空）', '']
+    if think:
+        lines += ['## 思考过程', '', think.strip(), '']
+    lines += ['## 回答', '', (answer or '').strip(), '']
+    lines += ['---', '',
+              '- 时间：%s' % time.strftime('%Y-%m-%d %H:%M:%S'),
+              '- 会话：%s' % (sid or '匿名'),
+              '- 输入 token：%d' % usage.get('in', 0),
+              '- 输出 token：%d' % usage.get('out', 0)]
+    if sources:
+        lines += ['', '## 来源']
+        for i, (title, link, _) in enumerate(sources, 1):
+            lines.append('%d. [%s](%s)' % (i, title, link))
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(lines) + '\n')
+    return path
+
+
 def load_sessions() -> None:
     """启动时把磁盘上的历史会话读回内存，实现重启不丢记录。"""
     os.makedirs(SESS_DIR, exist_ok=True)  # 目录不存在就创建，避免首次启动报错
@@ -625,6 +654,22 @@ class Handler(BaseHTTPRequestHandler):
             p = os.path.join(BIN_DIR, "chat.html")  # 页面文件位置
             with open(p, "rb") as f:  # 二进制读，避免编码转换
                 self._send(f.read(), "text/html")  # 以 HTML 类型返回
+        elif u.path == "/thinking":  # 查看思考过程文件
+            qs = parse_qs(u.query)
+            name = (qs.get("f") or [""])[0]  # 指定文件名就返回内容
+            if name:  # 单文件
+                fp = os.path.join(THINK_DIR, os.path.basename(name))  # 防目录穿越
+                if os.path.isfile(fp):
+                    with open(fp, "rb") as f:
+                        self._send(f.read(), "text/markdown")
+                else:
+                    self._send(b'{"error":"not found"}')
+            else:  # 列出最近的
+                os.makedirs(THINK_DIR, exist_ok=True)
+                files = sorted(os.listdir(THINK_DIR), reverse=True)[:50]
+                data = [{"name": f, "size": os.path.getsize(os.path.join(THINK_DIR, f))}
+                        for f in files if f.endswith(".md")]
+                self._send(json.dumps({"files": data}, ensure_ascii=False).encode())
         elif u.path == "/sessions":  # 左侧会话列表
             data = [{"id": k, "title": v.get("title") or "新会话"} for k, v in sessions.items()]  # 只暴露必要字段
             data.sort(key=lambda x: x["id"], reverse=True)  # ID 含时间戳，倒序即最近在前
@@ -821,7 +866,9 @@ class Handler(BaseHTTPRequestHandler):
                     for ch in chain_answer:  # 逐字发送，保持流式观感
                         acc.append(ch)
                         emit({"delta": ch})
-                elif BACKEND == "nanogpt":  # 自研 C 模型：直接续写文本
+                elif BACKEND == "nanogpt" or mode == "think":  # 自研模式：用自己的 C 模型
+                    # 思考模式原先跑 DeepSeek-R1-8B，现已换成自己训练的 nanogpt。
+                    # 它只有 136 万参数、字符级建模，不会回答问题，只会接着往下写文本。
                     prompt = text + "\n"  # 用问题本身当提示，让模型接着往下写
                     for delta in stream_nanogpt(prompt, usage):  # 逐字符增量
                         acc.append(delta)  # 累积
@@ -834,6 +881,11 @@ class Handler(BaseHTTPRequestHandler):
                 emit({"delta": "\n[后端出错：%s]" % e})  # 以文本形式回传
             raw_ans = usage.get("answer") or usage.get("think") or "".join(acc)  # 优先正文，其次思考
             ans = strip_refs(raw_ans) or "（模型没有给出答案）"  # 清洗出处措辞并兜底
+            try:  # 落盘失败不影响回答
+                save_thinking(sid, text, usage.get("think", ""), raw_ans, usage, web_sources)
+            except Exception as e:
+                print("[thinking] 保存失败:", e, flush=True)
+
             if web_sources:                              # 联网过就把来源发出去
                 src = format_sources(web_sources)
                 emit({"delta": src})
