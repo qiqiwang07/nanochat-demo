@@ -420,12 +420,24 @@ static void forward(void) {
 }
 
 /* softmax + 交叉熵，并把 dL/dlogits 写进 g_logits */
+static unsigned char *g_qmask = NULL;  /* 每个 token 是否属于题目（1=屏蔽，不计损失） */
+static unsigned char ymask[8192];      /* 当前批次每个位置的屏蔽标记 */
 static float loss_and_grad(void) {
     /* 为什么把损失和梯度写在一起：交叉熵对 logits 的导数有解析式 p - onehot，
        直接在同一个循环里算完最省事，也避免重复遍历 */
-    float loss = 0.0f, scale = 1.0f / (float)BT;  /* scale 用于对 batch 取平均 */
+    int cnt = 0;                                   /* 参与损失的位置数（跳过题目段） */
+    for (int i = 0; i < BT; i++) if (!ymask[i]) cnt++;  /* 先数一遍 */
+    if (cnt == 0) {                                /* 整批都是题目：不计损失也不给梯度 */
+        memset(g_logits, 0, (size_t)BT * VOCAB * sizeof(float));
+        return 0.0f;
+    }
+    float loss = 0.0f, scale = 1.0f / (float)cnt;  /* 只对参与的位置取平均 */
     for (int i = 0; i < BT; i++) {                 /* 逐位置 */
         float *lg = h_logits + (size_t)i * VOCAB;  /* 当前位置的 logits，会被原地改成概率 */
+        if (ymask[i]) {                            /* 题目段：梯度清零，不参与训练 */
+            memset(g_logits + (size_t)i * VOCAB, 0, (size_t)VOCAB * sizeof(float));
+            continue;
+        }
         float maxl = lg[0];                        /* 数值稳定：先找最大值 */
         for (int v = 1; v < VOCAB; v++) if (lg[v] > maxl) maxl = lg[v];  /* 取最大 logit */
         float sum = 0.0f;                          /* 指数和 */
@@ -716,12 +728,39 @@ static int load_corpus(const char *path) {
         }
         for (; k < VOCAB; k++) { vocab_cp[k] = 0xFFFD; }   /* 剩余槽位占位 */
         int *tok = (int *)malloc(sizeof(int) * (size_t)(ncp + 1));  /* 预分配 token 数组 */
+        unsigned char *bmask = (unsigned char *)calloc((size_t)ncorpus + 1, 1);  /* 逐字节的题目屏蔽表 */
+        {   /* 扫一遍原文，把「问：…?」整段标成屏蔽，包括后随的换行 */
+            const char *QS = "\xE9\x97\xAE\xEF\xBC\x9A";  /* UTF-8 的「问：」 */
+            int in_q = 0, extra = 0;               /* in_q=在题目里；extra=再接一个字符（换行） */
+            for (long i = 0; i < ncorpus; ) {
+                int len; int cp = u8_get(corpus + i, &len);
+                if (extra > 0) {                   /* 题目结束后的换行也屏蔽 */
+                    for (int b = 0; b < len; b++) bmask[i + b] = 1;
+                    extra--;
+                } else if (in_q) {                 /* 题目内部：全屏蔽 */
+                    for (int b = 0; b < len; b++) bmask[i + b] = 1;
+                    if (cp == '?') { in_q = 0; extra = 1; }
+                }
+                if (!in_q && i + 5 < ncorpus && memcmp(corpus + i, QS, 6) == 0) {
+                    for (int b = 0; b < 6; b++) bmask[i + b] = 1;  /* 「问：」本身 */
+                    in_q = 1;
+                }
+                i += len;
+            }
+        }
+        g_qmask = (unsigned char *)malloc((size_t)(ncp + 1));
         long nt = 0;                               /* 实际 token 数 */
+        long nq = 0;                               /* 被屏蔽的字符数 */
         for (long i = 0; i < ncorpus; ) {          /* 第二遍：编码全文 */
             int len; int cp = u8_get(corpus + i, &len);
-            tok[nt++] = char_id(cp);               /* 查表转 id，未知字符映射到 0 */
-            i += len;                              /* 前进 */
+            tok[nt] = char_id(cp);                 /* 查表转 id，未知字符映射到 0 */
+            g_qmask[nt] = bmask[i];                /* 同步屏蔽标记 */
+            if (bmask[i]) nq++;
+            nt++;                                  /* 前进 */
+            i += len;
         }
+        free(bmask);
+        fprintf(stderr, "题目屏蔽: %ld 个字符不计损失（占 %.1f%%）\n", nq, 100.0 * nq / (double)(nt ? nt : 1));
         tokens = tok;                              /* 保存结果 */
         ncorpus = nt;                       /* 这里是"字符数" */
         ntrain = (long)(ncorpus * 0.98);           /* 前 98% 做训练 */
@@ -769,6 +808,8 @@ static void sample_batch(int val_split) {
         for (int t = 0; t < T; t++) {              /* 逐位置 */
             xs[b * T + t] = tokens[start + t];     /* 输入：当前位置的 token */
             ys[b * T + t] = tokens[start + t + 1]; /* 目标：下一个位置的 token（语言模型的自监督目标） */
+            /* 目标落在题目段里就不计损失：逼模型读题，而不是自己编题 */
+            ymask[b * T + t] = g_qmask ? g_qmask[start + t + 1] : 0;
         }
     }
 }

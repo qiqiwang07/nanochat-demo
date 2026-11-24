@@ -197,7 +197,7 @@ def strip_refs(text: str) -> str:
     return re.sub(r"\n{3,}", "\n\n", out).strip()  # 压缩多余空行并去首尾空白
 
 
-def stream_llama(messages, usage_out: dict, max_tokens=None, url=None):
+def stream_llama(messages, usage_out: dict, max_tokens=None, url=None, temperature=0.7):
     """向 llama-server 请求流式输出，同时转发"思考"与"回答"。
 
     url 为空时用默认（简单模式）模型；思考模式传 8081 的地址。
@@ -210,7 +210,7 @@ def stream_llama(messages, usage_out: dict, max_tokens=None, url=None):
     body = {                                       # OpenAI 兼容请求体
         "messages": messages,
         "max_tokens": int(max_tokens or MAX_NEW),
-        "temperature": 0.7,
+        "temperature": temperature,          # 事实题用低温度，减少编造 
         "top_p": 0.9,
         "repeat_penalty": 1.05,
         "stream": True,
@@ -458,7 +458,8 @@ def web_grounded(query: str, results) -> str:
         detail = body if len(body) > len(snippet) else snippet
         parts.append('【资料%d】%s\n%s' % (i, title, detail[:600]))
     return ('以下是刚从网上搜到的资料，请据此回答。\n'
-            '要求：结合资料给准确回答；资料没提到的不要编造，直接说没查到。\n\n'
+            '要求：结合资料给准确回答；资料没提到的具体事实（数字、年份、人名）不要编造，'
+            '直接说没查到。\n\n'
             + '\n\n'.join(parts) + '\n\n用户问题：' + query)
 
 
@@ -470,6 +471,43 @@ def format_sources(results) -> str:
     for i, (title, link, _) in enumerate(results, 1):
         lines.append('%d. [%s](%s)' % (i, title[:50], link))
     return '\n'.join(lines)
+
+
+def faith_check(answer: str, context: str, question: str):
+    """检查回答里的事实性内容是否有依据。
+
+    做法：抽出答案里的数字和《》书名，逐个看在材料或问题里有没有。
+    返回 (无依据的条目列表)。宁可误报，也不要让编造的数字混过去。
+    """
+    if not answer:
+        return []
+    src = (context or "") + (question or "")
+    bad = []
+    # 数字：日期、年份、数量、百分比
+    for num in re.findall(r"\d+(?:\.\d+)?", answer):
+        if num not in src and len(num) >= 2:      # 单个数字太常见，跳过
+            bad.append(num)
+    # 书名号里的名字：人物、作品、机构
+    for name in re.findall(r"《([^》]{2,20})》", answer):
+        if name not in src:
+            bad.append("《%s》" % name)
+    # 重合度：答案和材料几乎没有共同词组，说明它在自己发挥
+    if context:
+        grams = set()
+        for i in range(len(context) - 2):
+            grams.add(context[i:i + 3])
+        hit = sum(1 for i in range(len(answer) - 2) if answer[i:i + 3] in grams)
+        total = max(1, len(answer) - 2)
+        if total > 40 and hit / total < 0.05:      # 长答案里几乎找不到材料原句
+            bad.append("（整体内容与资料重合度很低，可能是模型自行发挥）")
+
+    # 去重并保序
+    seen, out = set(), []
+    for x in bad:
+        if x not in seen:
+            seen.add(x)
+            out.append(x)
+    return out[:8]
 
 
 def classify(text: str) -> str:
@@ -502,7 +540,9 @@ def classify(text: str) -> str:
         return 'web'
 
     lookup_heads = ('什么是', '什么叫', '是什么', '谁是', '的作者', '的作者是谁',
-                    '多少', '几位', '哪一年', '解释一下', '定义')
+                    '多少', '几位', '哪一年', '解释一下', '定义',
+                    # 人物/作品评价类：这类最容易编，必须先去查资料
+                    '什么样', '怎么样', '介绍', '评价', '说说', '是个', '事迹', '生平')
     if any(s.startswith(h) or h in s for h in lookup_heads):
         return 'lookup'
     return 'think'
@@ -784,7 +824,10 @@ class Handler(BaseHTTPRequestHandler):
                 # 3B 小模型很容易被无关材料带偏（问"素数"却照着"Lp 范数"往下编），所以加校验
                 ctx = "\n\n".join(h[:200] for h in hits)  # 每段截到 200 字，控制预填充耗时
                 grounded = ("以下是一些参考材料，请据此回答。不要说明内容来自哪里，"  # 提示模型别说出处
-                            "不要提资料、教材或书名。" + brief + "\n\n" + ctx + "\n\n问题：" + text)  # 材料 + 要求 + 问题
+                            "不要提资料、教材或书名。\n"
+                            "铁律：材料里没有的具体事实（数字、年份、人名、书名）一律不许编，"  # 直接堵住编造
+                            "材料不足以回答就直说\"资料里没有相关内容\"。\n"
+                            + brief + "\n\n" + ctx + "\n\n问题：" + text)  # 材料 + 要求 + 问题
                 msgs = s["messages"][:-1] + [{"role": "user", "content": grounded}]  # 同样替换最后一条
             else:  # 检索没命中，或片段不相关：直接回答
                 msgs = s["messages"][:-1] + [{"role": "user", "content": text + "\n\n" + brief}]  # 只加回答要求
@@ -836,6 +879,16 @@ class Handler(BaseHTTPRequestHandler):
                 if got:
                     chain_answer = got                # 直出，不调用模型
                     expr = ''
+                else:                                 # 知识库没有 → 先联网找依据
+                    results = web_search(text)
+                    if results:
+                        msgs = [{"role": "user", "content": web_grounded(text, results)}]
+                        web_sources = results
+                        route = "web"                 # 后续按"有材料"处理
+                    else:                             # 联网也没有 → 如实说，不编
+                        chain_answer = ("这个问题我的知识库里没有相关资料，联网也没搜到可靠来源。\n\n"
+                                        "我宁可说不知道，也不编一个像模像样的答案给你。\n\n"
+                                        "你可以把问题说得更具体些，或者换个说法再问一次。")
 
             if expr and route == 'think' and BACKEND != "nanogpt":  # 三级：需要思考的题交给模型
                 fmt = ("只输出计算步骤，不要任何解释。每步格式严格为 算式=结果，用分号分隔，"
@@ -874,7 +927,8 @@ class Handler(BaseHTTPRequestHandler):
                         acc.append(delta)  # 累积
                         emit({"delta": delta})  # 立刻推给浏览器
                 else:  # 外部模型
-                    for delta in stream_llama(msgs, usage, req_max, model_url):  # 逐个增量（按模式选模型）
+                    temp = 0.25 if (web_sources or hits) else 0.7  # 有材料时用低温，纯闲聊用常温
+                    for delta in stream_llama(msgs, usage, req_max, model_url, temp):  # 逐个增量（按模式选模型）
                         acc.append(delta)  # 累积
                         emit({"delta": delta})  # 立刻推给浏览器
             except Exception as e:  # 记录错误到对话里，用户能看到原因
@@ -885,6 +939,17 @@ class Handler(BaseHTTPRequestHandler):
                 save_thinking(sid, text, usage.get("think", ""), raw_ans, usage, web_sources)
             except Exception as e:
                 print("[thinking] 保存失败:", e, flush=True)
+
+            # 事实核对：只在有材料的场景做（查库、联网），没材料的闲聊无从核对
+            if hits or web_sources:
+                ctx_all = "\n".join(h for h in (hits or [])) + \
+                          "\n".join("%s %s" % (t_, s_) for t_, _, s_ in (web_sources or []))
+                unsupported = faith_check(raw_ans, ctx_all, text)
+                if unsupported:
+                    note = ("\n\n---\n**提示**：以下内容在查到的资料里没有依据，"
+                            "可能是模型自行补充的，请谨慎采信：%s" % "、".join(unsupported))
+                    emit({"delta": note})
+                    acc.append(note)
 
             if web_sources:                              # 联网过就把来源发出去
                 src = format_sources(web_sources)
