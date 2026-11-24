@@ -792,7 +792,8 @@ class Handler(BaseHTTPRequestHandler):
         elif u.path == "/chat":  # 核心对话接口
             text = (body.get("text") or "").strip()  # 用户问题，去掉首尾空白
             mode = (body.get("mode") or "simple").strip()  # 模式：simple 简单 / think 思考
-            model_url = LLAMA_THINK if mode == "think" else LLAMA  # 按模式选模型
+            model_url = LLAMA  # 两个模式都用本地 llama 模型（8081 的 DeepSeek 已下线）
+            # 思考模式与简单模式的区别在提示词和题库检索，不在模型
             sid = body.get("session") or ""  # 客户端传来的会话 ID
             if sid not in sessions:  # 没带或带了个不存在的 ID
                 sid = new_sid()  # 新建一个，避免把消息丢进不存在的会话
@@ -812,7 +813,9 @@ class Handler(BaseHTTPRequestHandler):
             code_action = ("写", "实现", "编", "生成", "改", "修", "优化", "调试", "报错", "错误", "不会")
             is_code = (any(k in text for k in code_topic) and any(k in text for k in code_action)) \
                       or any(k in text for k in ("为什么报错", "报错了", "运行不了", "跑不起来", "语法错误"))
-            math_hits = retrieve_olympiad(text, 1)  # 先判断是不是数学题，数学题才检索题库
+            # 思考模式多取几道相似题做参考；简单模式只要 1 道，省预填充
+            math_hits = retrieve_olympiad(text, 3 if mode == "think" else 1)
+            bank_hit = math_hits[0] if (mode == "think" and math_hits and math_hits[0][0] >= 0.85) else None
             hits = retrieve(text, 1)  # 只取 1 段：片段越多预填充越慢，首字延迟越高
             style_hits = retrieve("好词好句 优美句子 名言警句 开头 结尾 排比 描写", 1) if is_essay else []  # 写作任务额外取一段素材
             route = classify(text) if BACKEND != "nanogpt" else "think"  # 自研模型不做路由
@@ -862,13 +865,24 @@ class Handler(BaseHTTPRequestHandler):
                 refs = "\n\n".join(  # 把多道参考题拼成一段
                     "【相似题%d】\n题目：%s\n标准解答：%s" % (i + 1, q, a[:500])  # 解答截到 500 字：只保留思路即可，太长会拖慢预填充
                     for i, (sc, q, a) in enumerate(math_hits))  # 逐条格式化
-                grounded = ("下面给出几道相似题目及其标准解答，请参考它们的解题思路和书写格式，"  # 明确告诉模型参考什么
+                if mode == "think":  # 思考模式：要求写出完整推理，不许提参考
+                    grounded = ("下面给出几道相似题及其标准解答，仅供你参考解题方法。\n"
+                                "要求：\n"
+                                "1. 一步一步推理，每一步都写清楚依据（用了什么定理、为什么成立）；\n"
+                                "2. 不许跳步，不许只给答案；\n"
+                                "3. 如果某一步需要计算，把算式写出来并算出结果；\n"
+                                "4. 最后用 \\boxed{} 给出答案；\n"
+                                "5. 不要提\"相似题\"\"参考\"\"资料\"这些字眼。\n\n"
+                                + refs + "\n\n【需要解答的题目】\n" + text)
+                    msgs = s["messages"][:-1] + [{"role": "user", "content": grounded}]
+                else:
+                    grounded = ("下面给出几道相似题目及其标准解答，请参考它们的解题思路和书写格式，"  # 明确告诉模型参考什么
                             "解答用户提出的新题目。\n"  # 任务说明
                             "要求：写清完整推理步骤（每一步说清楚为什么这么做），"  # 要求步骤完整
                             "最后用 \\boxed{} 给出答案；答完可以补充一句思路小结或易错点提醒。"  # 统一答案格式
                             "不要提及“相似题/参考/资料”这些字眼。\n\n"  # 禁止暴露参考来源
                             + refs + "\n\n【需要解答的题目】\n" + text)  # 拼上真正要答的题目
-                msgs = s["messages"][:-1] + [{"role": "user", "content": grounded}]  # 用注入后的提示替换最后一条用户消息
+                    msgs = s["messages"][:-1] + [{"role": "user", "content": grounded}]  # 用注入后的提示替换最后一条用户消息
             elif hits and any(t in hits[0] for t in key_terms(text)):  # 片段必须真含关键词才注入
                 # 3B 小模型很容易被无关材料带偏（问"素数"却照着"Lp 范数"往下编），所以加校验
                 ctx = "\n\n".join(h[:200] for h in hits)  # 每段截到 200 字，控制预填充耗时
@@ -904,7 +918,12 @@ class Handler(BaseHTTPRequestHandler):
             expr = extract_expr(text)                 # 提取算式
 
 
-            if route == 'greet':                      # 问候语：直接回应，不调模型
+            if bank_hit:                              # 题库里有几乎一样的题：直接给标准解答
+                sc, q0, a0 = bank_hit                 # 相似度、原题、标准解答
+                chain_answer = ("【题库命中】这道题在本地题库里有原题，直接给标准解答（没上网）：\n\n"
+                                "**题目**\n%s\n\n**解答**\n%s" % (q0, a0))
+
+            elif route == 'greet':                    # 问候语：直接回应，不调模型
                 chain_answer = ('你好！我是这个系统的 AI 助手。\n\n'
                                 '我可以：\n'
                                 '- 精确计算：直接给算式，我用程序算，不会算错\n'
@@ -917,7 +936,7 @@ class Handler(BaseHTTPRequestHandler):
                     body = rep[rep.find('【思考过程】'):] if '【思考过程】' in rep else rep
                     chain_answer = '【精确计算】\n问题：' + expr + '\n' + body
                     expr = ''                         # 跳过后续模型链路
-            elif route == 'web' and BACKEND != "nanogpt":  # 联网：先搜，再让模型据此回答
+            elif route == 'web' and BACKEND != "nanogpt" and mode != 'think':  # 思考模式要求离线，跳过联网
                 results = web_search(web_query(text))     # 先洗干净再搜，否则会搜跑偏
                 if results:
                     msgs = [{"role": "user", "content": web_grounded(text, results)}]
@@ -970,8 +989,8 @@ class Handler(BaseHTTPRequestHandler):
                     for ch in chain_answer:  # 逐字发送，保持流式观感
                         acc.append(ch)
                         emit({"delta": ch})
-                elif BACKEND == "nanogpt" or mode == "think":  # 自研模式：用自己的 C 模型
-                    # 思考模式原先跑 DeepSeek-R1-8B，现已换成自己训练的 nanogpt。
+                elif BACKEND == "nanogpt":  # 自研模型后端（只有在 --backend nanogpt 时才走这里）
+                    # 思考模式现在走本地 llama 模型 + 奥数题库，不再依赖 DeepSeek，也不联网。
                     # 它只有 136 万参数、字符级建模，不会回答问题，只会接着往下写文本。
                     prompt = text + "\n"  # 用问题本身当提示，让模型接着往下写
                     for delta in stream_nanogpt(prompt, usage):  # 逐字符增量
