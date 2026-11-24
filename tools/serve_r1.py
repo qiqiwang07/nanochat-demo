@@ -549,6 +549,10 @@ def missing_disclosure(answer: str, context: str, question: str) -> str:
             "资料里没有", "材料里没有", "无法确定", "没有相关内容", "没有涉及")
     if any(k in answer for k in said):
         return ""                                  # 已经声明过，不重复
+    # 只对"查某个东西"的问题要求声明；"今天有什么新闻"这类请求型问题不该报缺
+    entity_q = ('什么是', '是谁', '是什么', '介绍', '生平', '的作者', '多少', '哪一年', '解释')
+    if not any(k in question for k in entity_q):
+        return ""
     terms = key_terms(question)                    # 问题里的实词
     if not terms:
         return ""
@@ -828,6 +832,16 @@ class Handler(BaseHTTPRequestHandler):
                 msgs = [{"role": "system", "content":
                          "你是简洁的中文助手。直接给出答案，控制在 200 字以内，"
                          "不要长篇铺陈，不要复述题目。"}] + msgs
+
+            if mode == 'think' and BACKEND != "nanogpt" and not math_hits:
+                # 思考模式：所有问题都先推演。数学题有自己的提示词，这里只管其余题型
+                msgs = [{"role": "system", "content":
+                         "你是一个善于推理的助手。回答前必须先把问题想透：\n"
+                         "1. 先判断问题属于哪一类（事实查询 / 需要推理 / 需要创作）；\n"
+                         "2. 需要推理的，写出中间步骤，每一步说明依据；\n"
+                         "3. 涉及计算的，把算式写出来并算出结果，不要心算跳步；\n"
+                         "4. 信息不足时明确说出缺什么，不要编造；\n"
+                         "5. 最后给结论。"}] + msgs
             brief = ("回答要详实自然，像跟朋友解释一样：把内容讲清楚，可以举例。"  # 只提要求不列结构，避免被照抄成小标题
                      "篇幅 300-600 字。"  # 控制篇幅
                      "直接给内容，不要写“先说结论/解释为什么/补充要点”这类格式说明，"  # 明确禁止复述提示词
@@ -886,21 +900,31 @@ class Handler(BaseHTTPRequestHandler):
             elif hits and any(t in hits[0] for t in key_terms(text)):  # 片段必须真含关键词才注入
                 # 3B 小模型很容易被无关材料带偏（问"素数"却照着"Lp 范数"往下编），所以加校验
                 ctx = "\n\n".join(h[:200] for h in hits)  # 每段截到 200 字，控制预填充耗时
-                grounded = ("以下是一些参考材料，请据此回答。不要说明内容来自哪里，"  # 提示模型别说出处
-                            "不要提资料、教材或书名。\n"
-                            "铁律一：材料里没有的具体事实（数字、年份、人名、书名）一律不许编。\n"
-                            "铁律二：如果材料没有直接回答问题的关键部分，回答的第一句必须写明"
-                            "\"资料里没有直接提到……\"，说清缺的是哪一点，然后再讲材料里确实有的内容。\n"
-                            "不许用模糊说法蒙混（如\"大致\"\"一般来说\"），缺就是缺。\n"
-                            + brief + "\n\n" + ctx + "\n\n问题：" + text)  # 材料 + 要求 + 问题
-                msgs = s["messages"][:-1] + [{"role": "user", "content": grounded}]  # 同样替换最后一条
+                # 规则放 system：写在 user 里模型会把它当正文照抄成小标题
+                rule = ("你要依据用户给出的材料作答。\n"
+                        "材料里没有的具体事实（数字、年份、人名、书名）一律不许编造。\n"
+                        "如果材料没有覆盖问题的关键部分，必须在回答开头用一句话说明缺什么，"
+                        "然后再讲材料里确有的内容；不要用模糊说法带过。\n"
+                        "不要提及材料、资料、教材、书名，也不要说明内容来自哪里。")
+                grounded = brief + "\n\n" + ctx + "\n\n问题：" + text
+                msgs = [{"role": "system", "content": rule}] + s["messages"][:-1] + \
+                       [{"role": "user", "content": grounded}]
             else:  # 检索没命中，或片段不相关：直接回答
-                msgs = s["messages"][:-1] + [{"role": "user", "content": text + "\n\n" + brief}]  # 只加回答要求
+                if mode == 'think' and BACKEND != "nanogpt":
+                    # 思考模式要求分两步：先写推理，再给结论
+                    msgs = s["messages"][:-1] + [{"role": "user", "content":
+                        text + "\n\n请按这个格式回答：\n"
+                        "**【思考】** 逐步写出你的推理，该算的地方把算式和结果写出来；\n"
+                        "**【结论】** 给出明确答案。\n"
+                        "不要复述题目，不要写\"好的\"这类开场。"}]
+                else:
+                    msgs = s["messages"][:-1] + [{"role": "user", "content": text + "\n\n" + brief}]  # 只加回答要求
             ref_count = len(math_hits) + (0 if math_hits else len(hits)) + len(style_hits)  # 统计参考了多少条，前端可展示
             if not is_essay and not is_code:  # 写作与编程分支已自行设过额度，其余按题目类型给
                 req_max = max(MAX_NEW, 3000) if math_hits else MAX_NEW  # 数学题解答长，给更大额度
-            if route == 'think' and not math_hits and not is_essay and not is_code:
-                req_max = min(req_max, 700) if mode == 'simple' else 2200  # 简单模式收窄，思考模式放宽
+            if not math_hits and not is_essay and not is_code:
+                # 简单模式收窄到 700；思考模式要写推理步骤，放宽到 1800
+                req_max = min(req_max, 700) if mode == 'simple' else 1800
             self.send_response(200)  # 开始流式响应
             self.send_header("Content-Type", "text/event-stream; charset=utf-8")  # SSE 类型
             self.send_header("Cache-Control", "no-store")  # 流式内容不能缓存
@@ -942,23 +966,27 @@ class Handler(BaseHTTPRequestHandler):
                     msgs = [{"role": "user", "content": web_grounded(text, results)}]
                     web_sources = results                  # 回答后附来源
                     req_max = 800 if mode == 'simple' else 1500
-                else:                                      # 没搜到就照常回答
-                    msgs = s["messages"][:-1] + [{"role": "user", "content": text + "\n" + brief}]
+                else:                                      # 一条都没搜到：如实说，别编
+                    chain_answer = ("我联网搜了一下，没找到和这个问题直接相关的结果。\n\n"
+                                    "可能是关键词太口语化，或者这件事本身就没什么公开信息。\n"
+                                    "你可以换个说法再问，或者直接给我一个链接，我读了再答。")
             elif route == 'lookup':                   # 二级：事实题，直接查知识库
                 got = lookup_answer(text)             # 检索最相关原文
                 if got:
                     chain_answer = got                # 直出，不调用模型
                     expr = ''
                 else:                                 # 知识库没有 → 先联网找依据
-                    results = web_search(web_query(text))
+                    # 思考模式要求离线：不联网，直接交给本地模型推演
+                    results = [] if mode == 'think' else web_search(web_query(text))
                     if results:
                         msgs = [{"role": "user", "content": web_grounded(text, results)}]
                         web_sources = results
                         route = "web"                 # 后续按"有材料"处理
-                    else:                             # 联网也没有 → 如实说，不编
+                    elif mode != 'think':             # 简单模式：联网也没有 → 如实说，不编
                         chain_answer = ("这个问题我的知识库里没有相关资料，联网也没搜到可靠来源。\n\n"
                                         "我宁可说不知道，也不编一个像模像样的答案给你。\n\n"
                                         "你可以把问题说得更具体些，或者换个说法再问一次。")
+                    # 思考模式：不联网也不用这套说辞，继续往下走，交给本地模型推演
 
             if expr and route == 'think' and BACKEND != "nanogpt":  # 三级：需要思考的题交给模型
                 fmt = ("只输出计算步骤，不要任何解释。每步格式严格为 算式=结果，用分号分隔，"
