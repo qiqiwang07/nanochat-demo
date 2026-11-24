@@ -341,8 +341,11 @@ def key_terms(text: str) -> list:
     """从问题里抽出实词片段，用于校验检索结果是否真的相关。"""
     s = text
     for w in ('什么是', '什么叫', '是什么', '请问', '解释一下', '简单说明', '一句话',
-              '的作者是谁', '的作者', '是谁', '多少', '有哪些', '都有谁', '怎么样',
-              '的', '是', '请', '吗', '呢', '？', '?', '。'):
+              '的作者是谁', '的作者', '是谁', '多少', '有哪些', '都有谁',
+              # 提问残渣：不剔掉会变成"个什么样"这种假关键词，导致误报"资料里没有"
+              '是什么样的人', '是个什么样的人', '是什么样', '是个什么样', '什么样',
+              '怎么样', '介绍', '评价', '说说', '是个', '一个人', '个',
+              '的', '是', '请', '吗', '呢', '人', '？', '?', '。'):
         s = s.replace(w, ' ')
     out = []
     for seg in s.split():
@@ -371,6 +374,16 @@ def lookup_answer(text: str) -> str:
             para = para.strip()
             if not para:
                 continue
+            # 跳过问句和题目（"请证明…""Q7 用Python…"不是答案）
+            if '？' in para or '?' in para or para.startswith('请') or para.startswith('Q'):
+                continue
+            # 跳过教材的过渡句/目录话术：含关键词但什么都没说
+            if any(w in para for w in ('本节', '篇幅', '走马观花', '下一页', '目录',
+                                       '习题', '练习', '小结', '如前所述',
+                                       '见下文', '稍后介绍', '不再赘述')):
+                continue
+            if len(para) < 20:          # 太短的片段多半是标题或残句
+                continue
             for term in terms:
                 if term in para and len(para) > len(best_para):
                     best_para = para
@@ -380,14 +393,27 @@ def lookup_answer(text: str) -> str:
                 cut = best_para.rfind('。', 0, 400)
                 best_para = best_para[:cut + 1] if cut > 80 else best_para[:400]
             return '【知识库检索】\n' + best_para
-        left = max(0, pos - 120)
-        right = min(len(h), pos + 280)
-        body = h[left:right].strip()
-        cut = max(body.rfind('。'), body.rfind('\n'))
-        if cut > 60:
-            body = body[:cut + 1]
-        return '【知识库检索】\n' + body
+        # 没有段落通过过滤：宁可放弃，也不返回大段无关原文
+        continue
     return ''
+
+
+def web_query(text: str) -> str:
+    """把口语化的问题洗成适合搜索的关键词。
+
+    反例：搜「三国演义里孙权是个什么样的人」会返回 PTA/ACM 完全无关的结果，
+          因为搜索引擎把「什么样的人」当成了主题词。
+    做法：去掉疑问句式和虚词，只留实体。
+    """
+    s = text
+    for w in ('是个什么样的人', '是什么样的人', '什么样的人', '是个怎么样的人',
+              '怎么样了', '怎么样', '是什么', '是谁', '为什么', '介绍一下', '介绍',
+              '评价一下', '评价', '说说', '告诉我', '请问', '想问', '一下',
+              '的', '吗', '呢', '？', '?', '。', '帮我', '查查', '查一下'):
+        s = s.replace(w, ' ')
+    parts = [x for x in s.split() if x.strip()]
+    q = ' '.join(parts).strip()
+    return q[:30] if q else text[:20]
 
 
 def web_search(query: str, n: int = 4):
@@ -458,8 +484,9 @@ def web_grounded(query: str, results) -> str:
         detail = body if len(body) > len(snippet) else snippet
         parts.append('【资料%d】%s\n%s' % (i, title, detail[:600]))
     return ('以下是刚从网上搜到的资料，请据此回答。\n'
-            '要求：结合资料给准确回答；资料没提到的具体事实（数字、年份、人名）不要编造，'
-            '直接说没查到。\n\n'
+            '要求一：结合资料给准确回答；资料没提到的具体事实（数字、年份、人名）不要编造。\n'
+            '要求二：如果资料没有直接回答问题的关键部分，第一句必须写'
+            '\"资料里没有直接提到……\"，说明缺的是什么，再讲资料里确有的内容。\n\n'
             + '\n\n'.join(parts) + '\n\n用户问题：' + query)
 
 
@@ -508,6 +535,28 @@ def faith_check(answer: str, context: str, question: str):
             seen.add(x)
             out.append(x)
     return out[:8]
+
+
+def missing_disclosure(answer: str, context: str, question: str) -> str:
+    """检查是否该声明"资料里没有"，返回要补的话（不需要补则返回空串）。
+
+    判定：问题里的关键词有相当一部分在材料中完全没有出现，
+          而回答里又没有出现任何"没提到/没查到"之类的声明。
+    """
+    if not answer or not context:
+        return ""
+    said = ("没有直接提到", "没有提到", "没提到", "没有查到", "没查到",
+            "资料里没有", "材料里没有", "无法确定", "没有相关内容", "没有涉及")
+    if any(k in answer for k in said):
+        return ""                                  # 已经声明过，不重复
+    terms = key_terms(question)                    # 问题里的实词
+    if not terms:
+        return ""
+    missing = [w for w in terms if w not in context]
+    if len(missing) >= max(1, len(terms) // 2):     # 一半以上关键词材料里都没有
+        return ("\n\n---\n**说明**：以上回答中，资料里没有直接提到 %s 的相关内容，"
+                "这部分属于模型根据常识的补充，请谨慎采信。" % "、".join(missing[:4]))
+    return ""
 
 
 def classify(text: str) -> str:
@@ -825,8 +874,10 @@ class Handler(BaseHTTPRequestHandler):
                 ctx = "\n\n".join(h[:200] for h in hits)  # 每段截到 200 字，控制预填充耗时
                 grounded = ("以下是一些参考材料，请据此回答。不要说明内容来自哪里，"  # 提示模型别说出处
                             "不要提资料、教材或书名。\n"
-                            "铁律：材料里没有的具体事实（数字、年份、人名、书名）一律不许编，"  # 直接堵住编造
-                            "材料不足以回答就直说\"资料里没有相关内容\"。\n"
+                            "铁律一：材料里没有的具体事实（数字、年份、人名、书名）一律不许编。\n"
+                            "铁律二：如果材料没有直接回答问题的关键部分，回答的第一句必须写明"
+                            "\"资料里没有直接提到……\"，说清缺的是哪一点，然后再讲材料里确实有的内容。\n"
+                            "不许用模糊说法蒙混（如\"大致\"\"一般来说\"），缺就是缺。\n"
                             + brief + "\n\n" + ctx + "\n\n问题：" + text)  # 材料 + 要求 + 问题
                 msgs = s["messages"][:-1] + [{"role": "user", "content": grounded}]  # 同样替换最后一条
             else:  # 检索没命中，或片段不相关：直接回答
@@ -867,7 +918,7 @@ class Handler(BaseHTTPRequestHandler):
                     chain_answer = '【精确计算】\n问题：' + expr + '\n' + body
                     expr = ''                         # 跳过后续模型链路
             elif route == 'web' and BACKEND != "nanogpt":  # 联网：先搜，再让模型据此回答
-                results = web_search(text)                 # 必应中文搜索
+                results = web_search(web_query(text))     # 先洗干净再搜，否则会搜跑偏
                 if results:
                     msgs = [{"role": "user", "content": web_grounded(text, results)}]
                     web_sources = results                  # 回答后附来源
@@ -880,7 +931,7 @@ class Handler(BaseHTTPRequestHandler):
                     chain_answer = got                # 直出，不调用模型
                     expr = ''
                 else:                                 # 知识库没有 → 先联网找依据
-                    results = web_search(text)
+                    results = web_search(web_query(text))
                     if results:
                         msgs = [{"role": "user", "content": web_grounded(text, results)}]
                         web_sources = results
@@ -939,6 +990,15 @@ class Handler(BaseHTTPRequestHandler):
                 save_thinking(sid, text, usage.get("think", ""), raw_ans, usage, web_sources)
             except Exception as e:
                 print("[thinking] 保存失败:", e, flush=True)
+
+            # 材料没覆盖到关键部分时，必须明确声明，不许含糊带过
+            if hits or web_sources:
+                ctx_for_gap = "\n".join(h for h in (hits or [])) + \
+                              "\n".join("%s %s" % (t_, s_) for t_, _, s_ in (web_sources or []))
+                gap_note = missing_disclosure(raw_ans, ctx_for_gap, text)
+                if gap_note:
+                    emit({"delta": gap_note})
+                    acc.append(gap_note)
 
             # 事实核对：只在有材料的场景做（查库、联网），没材料的闲聊无从核对
             if hits or web_sources:
