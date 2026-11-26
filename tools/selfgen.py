@@ -381,7 +381,7 @@ def explain_concept(question, chunks):
 
 # 每个操作：关键词、生成的语句、注释
 OPS = [
-    (("去掉重复", "重复项", "去重", "不重复", "唯一"), "result = list(dict.fromkeys(result))", "去重并保持原顺序"),
+    (("去掉重复", "重复项", "重复", "去重", "不重复", "唯一"), "result = list(dict.fromkeys(result))", "去重并保持原顺序"),
     (("偶数", "双数"), "result = [x for x in result if x % 2 == 0]", "只保留偶数"),
     (("奇数", "单数"), "result = [x for x in result if x % 2 == 1]", "只保留奇数"),
     (("平方", "平方数"), "result = [x * x for x in result]", "每个元素取平方"),
@@ -397,6 +397,67 @@ OPS = [
     (("元素个数", "数量", "长度"), "result = len(result)", "统计个数"),
     (("出现次数", "计数", "统计次数"), "result = {v: result.count(v) for v in dict.fromkeys(result)}", "统计每个元素出现次数"),
 ]
+
+
+
+
+# ---------------------------------------------------------------- 语义辅助
+# 词向量来自本地语料训练（tools/train_wordvec.py），没有它也能跑，只是认不出同义说法
+SEMANTIC_OPS = False   # 语义兜底开关：噪音太大，先关掉
+_VEC = None
+try:
+    import os as _os
+
+    import numpy as _np
+
+    _p = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "wordvec.npz")
+    if _os.path.exists(_p):
+        _d = _np.load(_p, allow_pickle=True)
+        _VOCAB = list(_d["vocab"])
+        _VECS = _d["vecs"]
+        _IDX = {w: i for i, w in enumerate(_VOCAB)}
+        _VEC = (_VOCAB, _VECS, _IDX)
+except Exception:
+    _VEC = None
+
+
+def _word_vec(w):
+    """取一个词的向量：各字向量的平均。"""
+    if not _VEC:
+        return None
+    vocab, vecs, idx = _VEC
+    ids = [idx[c] for c in w if c in idx]
+    if not ids:
+        return None
+    v = vecs[ids].mean(axis=0)
+    n = (v @ v) ** 0.5
+    return v / (n + 1e-9) if n > 0 else None
+
+
+def sem_match(text, keys, threshold=0.55):
+    """语义匹配：文本里任一片段的向量与任一关键词足够接近，就算命中。
+
+    返回命中的位置（找不到返回 -1）。窗口取 2-4 字，覆盖"重复""双数"这类词。
+    """
+    if not _VEC:
+        return -1
+    best_pos, best_sim = -1, 0.0
+    for n in (2, 3, 4):
+        for i in range(0, max(0, len(text) - n + 1)):
+            seg = text[i:i + n]
+            if any(ch in seg for ch in "，。、！？ \n"):
+                continue
+            vs = _word_vec(seg)
+            if vs is None:
+                continue
+            for k in keys:
+                vk = _word_vec(k)
+                if vk is None:
+                    continue
+                sim = float(vs @ vk)
+                if sim > best_sim and sim >= threshold:
+                    best_sim, best_pos = sim, i
+    return best_pos
 
 
 def write_program(task):
@@ -419,6 +480,17 @@ def write_program(task):
             continue
         claimed.append((pos, pos + len(k)))
         hits.append((pos, stmt, note))
+
+    # 语义兜底默认关闭：实测句子级相似度普遍在 0.7 以上、没有区分度，
+    # 开着会把所有操作都匹配上。词对级（排序/排列 0.94）是有效的，留作以后做词表扩展用。
+    if SEMANTIC_OPS:
+        for keys, stmt, note in OPS:
+            if any(h[1] == stmt for h in hits):
+                continue
+            pos = sem_match(low, keys)
+            if pos >= 0:
+                hits.append((pos, stmt, note))
+
     if not hits:
         return None
 
