@@ -327,3 +327,8 @@ anogpt chain "3+5=8; 8*2=16" —— 逐步验证推理链
 - 词对级语义有效：排序↔排列 0.94、求和↔加总 0.73、重复↔去重 0.59、作文↔文章 0.71
 - 句子级语义匹配噪音过大（相似度普遍高于 0.7，无区分度），已关闭兜底，保留 SEMANTIC_OPS 开关
 - 代码合成器补关键词「重复」，"把重复的删掉，只要双数，按从小到大排" 现在能识别三个操作
+
+### 2026-11-24 免费 GPU 训练方案
+- 新增 tools/colab_train.py：PyTorch 版同架构训练脚本（RMSNorm+RoPE+SwiGLU），默认 28M 参数，支持命令行调规模
+- 新增 tools/convert_to_nanogpt.py：把 PyTorch 权重转成 nanogpt 的 NANOGPT1 格式（含词表码点、m/v 补零、可选 --transpose）
+- 新增 docs/COLAB_GUIDE.md：Colab/Kaggle 逐步操作手册（含参数调优、故障处理、时间预估）
