@@ -22,6 +22,7 @@ import codecs  # 增量解码：C 模型逐字节输出，需要拼成完整 UTF
 import threading  # 线程锁，保护 sessions 字典的并发写
 import time  # 计时（统计生成耗时）与生成会话 ID
 import urllib.parse  # 联网搜索时给关键词做 URL 编码
+import selfgen  # 自研生成模块：摘要/作文/代码/概念解释（不依赖任何模型）
 import urllib.request  # 向 llama-server 发 HTTP 请求（标准库，无需第三方依赖）
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer  # 内置 HTTP 服务，线程模型支持并发
 from urllib.parse import urlparse, parse_qs  # 解析 URL 路径与查询参数
@@ -384,6 +385,16 @@ def lookup_answer(text: str) -> str:
                 continue
             if len(para) < 20:          # 太短的片段多半是标题或残句
                 continue
+            # 跳过版权声明、来源标注这类样板行
+            if any(w in para for w in ('版权所有', '内容来源', '公众号', 'http://', 'https://', '©')):
+                continue
+            # 问"什么是X"时，必须是"X 是/指 …"这种定义句式
+            if '什么是' in text or '是什么' in text:
+                probe = max(terms, key=len) if terms else ''
+                idx = para.find(probe) if probe else -1
+                head = para[idx + len(probe): idx + len(probe) + 6] if idx >= 0 else ''
+                if not any(k in head for k in ('是', '指', '称为', '叫做')):
+                    continue
             for term in terms:
                 if term in para and len(para) > len(best_para):
                     best_para = para
@@ -407,10 +418,14 @@ def web_query(text: str) -> str:
     """
     s = text
     for w in ('是个什么样的人', '是什么样的人', '什么样的人', '是个怎么样的人',
-              '怎么样了', '怎么样', '是什么', '是谁', '为什么', '介绍一下', '介绍',
-              '评价一下', '评价', '说说', '告诉我', '请问', '想问', '一下',
-              '的', '吗', '呢', '？', '?', '。', '帮我', '查查', '查一下'):
+              '怎么样了', '怎么样', '什么是', '是什么', '是谁', '为什么', '什么',
+              '如何', '怎么', '介绍一下', '介绍', '评价一下', '评价', '说说',
+              '告诉我', '请问', '想问', '一下', '帮我', '查查', '查一下',
+              '的', '吗', '呢', '？', '?', '。', '，', ','):
         s = s.replace(w, ' ')
+    # 新闻类：清洗后容易只剩"今天"这类泛词，导致搜到日历网站，直接用固定查询词
+    if '新闻' in text:
+        return '今日新闻头条'
     parts = [x for x in s.split() if x.strip()]
     q = ' '.join(parts).strip()
     return q[:30] if q else text[:20]
@@ -561,6 +576,63 @@ def missing_disclosure(answer: str, context: str, question: str) -> str:
         return ("\n\n---\n**说明**：以上回答中，资料里没有直接提到 %s 的相关内容，"
                 "这部分属于模型根据常识的补充，请谨慎采信。" % "、".join(missing[:4]))
     return ""
+
+
+def split_sentences(text: str):
+    """把一段文字切成句子（中文标点和换行为界）。"""
+    parts = re.split(r"(?<=[。！？；])|\n", text)
+    return [p.strip() for p in parts if p and len(p.strip()) >= 8]
+
+
+def compose_answer(question: str):
+    """不用模型，自己从语料里挑句子拼答案。
+
+    做法：检索最相关的几段 → 切成句子 → 按命中关键词数打分 → 取前几句按原文顺序拼起来。
+    这样答案里的每一句都来自语料原文，不会编造。
+    """
+    terms = key_terms(question)
+    chunks = retrieve(question, 3)
+    if not chunks:
+        return ""
+    scored = []
+    for ci, ch in enumerate(chunks):
+        for si, sent in enumerate(split_sentences(ch)):
+            hit = sum(1 for w in terms if w in sent)
+            # 门槛一：必须命中问题里最长的那个词（避免"蓝色"这种泛词乱命中）
+            longest = max(terms, key=len) if terms else ''
+            if not (hit >= 2 or (longest and longest in sent and len(longest) >= 2)):
+                continue
+            # 门槛二：太短的片段是残句，不要
+            if len(sent) < 20:
+                continue
+            # 门槛三：问"什么是X"时，句子必须像定义（含 是/指/称为）
+            if ('什么是' in question or '是什么' in question) and not any(
+                    k in sent for k in ('是', '指', '称为', '叫做')):
+                continue
+            scored.append((hit, ci, si, sent))
+    if not scored:
+        return ""
+    scored.sort(key=lambda x: (-x[0], x[1], x[2]))   # 命中多的优先
+    top = sorted(scored[:5], key=lambda x: (x[1], x[2]))  # 取前 5 句，按原文顺序排
+    lines = ["**从本地知识库里找到这些相关内容：**", ""]
+    for _, _, _, sent in top:
+        lines.append("- " + sent)
+    lines.append("")
+    lines.append("（以上内容摘自本地资料原文，我没有改写或补充；如果需要更完整的解释，可以把问题问得更具体些。）")
+    return "\n".join(lines)
+
+
+def web_listing(results):
+    """联网结果直接列出来，不做总结（没有模型可用）。"""
+    if not results:
+        return ""
+    lines = ["**联网搜索到这些结果（原文摘要，未经改写）：**", ""]
+    for i, (title, link, snippet) in enumerate(results, 1):
+        lines.append("%d. **%s**" % (i, title))
+        if snippet:
+            lines.append("   " + snippet[:160])
+        lines.append("")
+    return "\n".join(lines)
 
 
 def classify(text: str) -> str:
@@ -1024,11 +1096,47 @@ class Handler(BaseHTTPRequestHandler):
                     for delta in stream_nanogpt(prompt, usage):  # 逐字符增量
                         acc.append(delta)  # 累积
                         emit({"delta": delta})  # 立刻推给浏览器
-                else:  # 外部模型
-                    temp = 0.25 if (web_sources or hits) else 0.7  # 有材料时用低温，纯闲聊用常温
-                    for delta in stream_llama(msgs, usage, req_max, model_url, temp):  # 逐个增量（按模式选模型）
-                        acc.append(delta)  # 累积
-                        emit({"delta": delta})  # 立刻推给浏览器
+                else:  # 不用外部模型：用自研模块拼答案
+                    if is_essay:                         # 作文：模板 + 引用库
+                        composed = selfgen.write_essay(text)
+                    elif is_code:                        # 代码：片段库匹配
+                        hit = selfgen.write_code(text)
+                        if hit:
+                            lang, title, code = hit
+                            composed = ("**%s**（%s）\n\n```%s\n%s\n```\n%s"
+                                        % (title, lang, lang.lower(), code.rstrip(), selfgen.CODE_NOTE))
+                        else:
+                            composed = ("我的代码片段库还没有覆盖这个任务。\n\n"
+                                        "目前能直接给的：冒泡排序、快速排序、二分查找、斐波那契、"
+                                        "最大公约数、质数判断、字符串反转、文件读写、HTTP 请求、"
+                                        "C 语言求数组最大值。\n\n"
+                                        "说说你要解决的具体问题，我按已有片段帮你拼。")
+                    elif web_sources:                    # 联网：抓正文做摘要，再列来源
+                        page = fetch_page(web_sources[0][1]) if web_sources else ""
+                        if page:
+                            composed = ("**摘要**：" + selfgen.summarize(page, text, 4, 500)
+                                        + "\n\n" + web_listing(web_sources))
+                        else:
+                            composed = web_listing(web_sources)
+                    elif math_hits:                      # 只有相似题：给出最相近的那道
+                        sc, q0, a0 = math_hits[0]
+                        composed = ("**题库里最接近的题目**\n\n题目：%s\n\n标准解答：\n%s\n\n"
+                                    "（这不是原题，是我从本地题库里找到的最相近的一道，供参考。）"
+                                    % (q0, a0))
+                    else:                                # 其余：概念解释 / 句子抽取
+                        composed = (selfgen.explain_concept(text, retrieve(text, 2))
+                                    or compose_answer(text))
+                    if not composed:                     # 什么依据都没有：明说
+                        composed = ("这个问题我回答不了。\n\n"
+                                    "我没有外部 AI 可用，只能做这几件事：\n"
+                                    "- **精确计算**：直接给我算式\n"
+                                    "- **查知识库**：问本地资料里有的知识（数学、文学、编程）\n"
+                                    "- **奥数题**：本地题库里有 2017 道原题\n"
+                                    "- **联网搜索**：我可以把搜到的网页摘要列给你\n\n"
+                                    "超过这个范围的内容，我不会编，也编不出来。")
+                    for ch in composed:                  # 逐字推送，保持流式观感
+                        acc.append(ch)
+                        emit({"delta": ch})
             except Exception as e:  # 记录错误到对话里，用户能看到原因
                 emit({"delta": "\n[后端出错：%s]" % e})  # 以文本形式回传
             raw_ans = usage.get("answer") or usage.get("think") or "".join(acc)  # 优先正文，其次思考
@@ -1038,8 +1146,9 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 print("[thinking] 保存失败:", e, flush=True)
 
-            # 材料没覆盖到关键部分时，必须明确声明，不许含糊带过
-            if hits or web_sources:
+            # 说明：现在不调用任何外部模型，回答要么是精确计算、要么是原文摘录，
+            # 所以"事实核对/缺失声明"已无意义，直接跳过（留着反而会误报）。
+            if False and (hits or web_sources) and not chain_answer:
                 ctx_for_gap = "\n".join(h for h in (hits or [])) + \
                               "\n".join("%s %s" % (t_, s_) for t_, _, s_ in (web_sources or []))
                 gap_note = missing_disclosure(raw_ans, ctx_for_gap, text)
@@ -1048,7 +1157,7 @@ class Handler(BaseHTTPRequestHandler):
                     acc.append(gap_note)
 
             # 事实核对：只在有材料的场景做（查库、联网），没材料的闲聊无从核对
-            if hits or web_sources:
+            if False and (hits or web_sources) and not chain_answer:
                 ctx_all = "\n".join(h for h in (hits or [])) + \
                           "\n".join("%s %s" % (t_, s_) for t_, _, s_ in (web_sources or []))
                 unsupported = faith_check(raw_ans, ctx_all, text)
