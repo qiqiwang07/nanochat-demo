@@ -1097,10 +1097,29 @@ class Handler(BaseHTTPRequestHandler):
                         acc.append(delta)  # 累积
                         emit({"delta": delta})  # 立刻推给浏览器
                 else:  # 不用外部模型：用自研模块拼答案
-                    if is_essay:                         # 作文：模板 + 引用库
-                        composed = selfgen.write_essay(text)
-                    elif is_code:                        # 代码：片段库匹配
-                        hit = selfgen.write_code(text)
+                    # 先看能不能合成程序：任务里出现两个以上可识别操作，就当作编程任务
+                    prog = None if is_essay else selfgen.write_program(text)
+                    lib = selfgen.write_code(text) if is_code else None   # 具名算法（冒泡/快排…）优先用片段库
+                    prog_ok = bool(prog) and not lib and (
+                        is_code
+                        or any(k in text for k in ('写', '实现', '代码', '函数', '程序', '脚本', '列表', '数组', '字符串'))
+                        or (prog[0].count('、') >= 1)      # 至少两个操作
+                    )
+                    if is_essay:                         # 作文：多骨架 + 语料论据
+                        ev = ""
+                        try:
+                            chs = retrieve(text, 1)      # 从语料里找一句能当论据的话
+                            if chs:
+                                ev = selfgen.summarize(chs[0], text, 2, 100)
+                        except Exception:
+                            ev = ""
+                        composed = selfgen.write_essay2(text, ev or None)
+                    elif prog_ok:                        # 代码：现场合成
+                        title, code = prog
+                        composed = ("**%s**（Python，按你的描述现场合成）\n\n```python\n%s\n```\n%s"
+                                    % (title, code.rstrip(), selfgen.PROGRAM_NOTE))
+                    elif is_code:                        # 退回片段库
+                        hit = lib
                         if hit:
                             lang, title, code = hit
                             composed = ("**%s**（%s）\n\n```%s\n%s\n```\n%s"
